@@ -18,16 +18,17 @@ public class JwtCore {
     public String generateAccessToken(UserDetailsImpl userDetails) {
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
-                .setSubject(String.valueOf(userDetails.getId()))
+                .claim("id", String.valueOf(userDetails.getId()))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenValidity))
                 .signWith(SignatureAlgorithm.HS256, secret)
                 .compact();
     }
 
-    public String generateRefreshToken(UserDetails userDetails) {
+    public String generateRefreshToken(UserDetailsImpl userDetails) {
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
+                .claim("id", String.valueOf(userDetails.getId()))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + refreshTokenValidity))
                 .signWith(SignatureAlgorithm.HS256, secret)
@@ -46,6 +47,10 @@ public class JwtCore {
     //Получение имени из Jwt token
     public String getNameJwt(String token) {
         return Jwts.parser().setSigningKey(secret).parseClaimsJws(token).getBody().getSubject();
+    }
+
+    public String getIdJwt(String token) {
+        return Jwts.parser().setSigningKey(secret).parseClaimsJws(token).getBody().getId();
     }
 
 
