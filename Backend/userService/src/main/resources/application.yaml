@@ -1,10 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/UsersAuth
+    url: jdbc:postgresql://localhost:5432/User
     username: postgres
     password: postgres
-    driver-class-name: org.postgresql.Driver
-
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -12,13 +10,13 @@ spring:
       - app_schema
     baseline-on-migrate: true
 
-  jpa:
-    show-sql: true
-    hibernate:
-      ddl-auto: none
+    jpa:
+      show-sql: true
+      hibernate:
+        ddl-auto: none
 
 server:
-  port: 8030
+  port: 8031
 
 logging:
   level:

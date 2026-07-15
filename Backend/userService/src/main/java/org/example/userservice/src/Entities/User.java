@@ -1,4 +1,4 @@
-package org.example.authservice.src.Entities;
+package org.example.userservice.src.Entities;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -12,19 +12,21 @@ import lombok.NoArgsConstructor;
 @Data
 @Builder
 @Table(name = "users", schema = "app_schema")
-public class UserAuth {
-
+public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     Long id;
 
-    @Column(name = "c_email")
-    String email;
+    @Column(name = "c_username")
+    String username;
 
-    @Column(name = "c_password")
-    String password;
+    @Column(name = "c_bio")
+    String bio;
 
-    @Column(name = "c_userid")
-    Long userId;
+    @Column(name = "c_is_online")
+    boolean is_online;
+
+    @Column(name = "c_avatar")
+    String avatar;
 }

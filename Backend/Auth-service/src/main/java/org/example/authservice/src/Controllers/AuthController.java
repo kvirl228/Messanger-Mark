@@ -8,6 +8,7 @@ import org.example.authservice.src.Dto.UserRequestName;
 import org.example.authservice.src.Dto.UserRequestSignIn;
 import org.example.authservice.src.Dto.UserRequestSignUp;
 import org.example.authservice.src.Entities.UserAuth;
+import org.example.authservice.src.Entities.UserDetailsImpl;
 import org.example.authservice.src.Jwt.JwtCore;
 import org.example.authservice.src.Repositories.UserAuthRepository;
 import org.example.authservice.src.Services.Impl.UserAuthServiceImpl;
@@ -66,36 +67,43 @@ public class AuthController {
             UserRequestName userRequestName = new UserRequestName();
             userRequestName.setUsername(userRequestSignUp.getUsername());
 
-            userAuthServiceImpl.save(userRequestSignUp);
+            UserAuth userAuth =  new UserAuth();
+            userAuth.setEmail(userRequestSignUp.getEmail());
+            userAuth.setPassword(passwordEncoder.encode(userRequestSignUp.getPassword()));
 
             ResponseEntity<Long> response = restClient.post()
-                    .uri("http://localhost:8080/api/users/create")
+                    .uri("http://localhost:8031/api/users/create")
                     .body(userRequestName)
                     .retrieve()
                     .toEntity(Long.class);
 
-
+            Long id = response.getBody();
+            userAuth.setUserId(id);
+            System.out.println(userAuth.getPassword());
+            userAuthServiceImpl.save(userAuth);
 
             return ResponseEntity.status(response.getStatusCode())
                     .body(response.getBody());
 
         } catch (Exception e) {
+
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("Пользователь уже существует");
+
         }
 
     }
 
     //Авторизация
     @PostMapping("/signin")
-    public ResponseEntity<?> signin(@RequestBody UserRequestSignIn userRequest, HttpServletResponse response){
+    public ResponseEntity<?> signin(@RequestBody UserRequestSignUp userRequest, HttpServletResponse response){
         Authentication authentication = null;
         try{
             authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(userRequest.getUsername(), userRequest.getPassword())
+                    new UsernamePasswordAuthenticationToken(userRequest.getEmail(), userRequest.getPassword())
             );
 
-//            UserAuth user = userRepository.findByEmail(userRequest.).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+            //UserAuth user = userAuthServiceImpl.findByEmail(userRequest.getEmail()).orElseThrow(() -> new UsernameNotFoundException("User not found"));
             //При введиние верных логинов
 //            authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(userRequest.getUsername(), userRequest.getPassword()));
         }catch (BadCredentialsException e){
@@ -103,7 +111,7 @@ public class AuthController {
         };
         //создание jwt token
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         String accessToken = jwtCore.generateAccessToken(userDetails);
         String refreshToken = jwtCore.generateRefreshToken(userDetails);
 
@@ -136,7 +144,7 @@ public class AuthController {
 
         String username = jwtCore.getNameJwt(refreshToken);
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-        String newAccessToken = jwtCore.generateAccessToken(userDetails);
+        String newAccessToken = jwtCore.generateAccessToken((UserDetailsImpl) userDetails);
 
         return ResponseEntity.ok().body(newAccessToken);
     }

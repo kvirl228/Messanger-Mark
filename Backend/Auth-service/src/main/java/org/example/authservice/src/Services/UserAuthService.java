@@ -8,6 +8,6 @@ import java.util.Optional;
 public interface UserAuthService {
     Optional<UserAuth> findByEmail(String email);
     Optional<UserAuth> findByID(Long id);
-    boolean save(UserRequestSignUp user);
+    void save(UserAuth user);
     void deleteByID(Long id);
 }

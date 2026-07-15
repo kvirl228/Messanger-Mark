@@ -1,6 +1,7 @@
 package org.example.authservice.src.Services.Impl;
 
 import lombok.AllArgsConstructor;
+import org.apache.catalina.User;
 import org.example.authservice.src.Dto.UserRequestSignUp;
 import org.example.authservice.src.Entities.UserAuth;
 import org.example.authservice.src.Repositories.UserAuthRepository;
@@ -26,15 +27,8 @@ public class UserAuthServiceImpl implements UserAuthService {
     }
 
     @Override
-    public boolean save(UserRequestSignUp user) {
-        UserAuth userAuth = new UserAuth();
-        userAuth.setEmail(user.getEmail());
-        userAuth.setPassword(user.getPassword());
-        if  (userAuthRepository.findByEmail(user.getEmail()).isPresent()) {
-            return  false;
-        }
-        userAuthRepository.save(userAuth);
-        return true;
+    public void save(UserAuth user) {
+        userAuthRepository.save(user);
     }
 
     @Override

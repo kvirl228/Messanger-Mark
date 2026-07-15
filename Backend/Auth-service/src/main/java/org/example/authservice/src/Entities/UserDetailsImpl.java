@@ -17,12 +17,15 @@ import java.util.List;
 public class UserDetailsImpl implements UserDetails {
     private String username;
     private String password;
+    public Long Id;
 
     public static UserDetailsImpl build(UserAuth user) {
         return new UserDetailsImpl(
-                user.getEmail(), user.getPassword() 
+                user.getEmail(), user.getPassword() , user.getUserId()
         );
     }
+
+    public Long getId() {return Id;}
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
