@@ -1,18 +1,16 @@
 package org.example.authservice.src.Services.Impl;
 
 import lombok.AllArgsConstructor;
-import org.apache.catalina.User;
-import org.example.authservice.src.Dto.UserRequestSignUp;
 import org.example.authservice.src.Entities.UserAuth;
 import org.example.authservice.src.Repositories.UserAuthRepository;
-import org.example.authservice.src.Services.UserAuthService;
+import org.example.authservice.src.Services.UserAuthServiceIntr;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 @Service
 @AllArgsConstructor
-public class UserAuthServiceImpl implements UserAuthService {
+public class UserAuthServiceIntrImpl implements UserAuthServiceIntr {
 
     private UserAuthRepository userAuthRepository;
 
