@@ -13,6 +13,7 @@ import org.example.chatservice.src.Services.Impl.ChatServiceImpl;
 import org.example.chatservice.src.Services.Impl.UserServiceClient;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @RestController
@@ -31,11 +32,11 @@ public class ChatController {
         Chat chat = new Chat();
         chat.setType("PRIVATE");
 
-        if (chatCreateDTO.getUser_id()==null ||  chatCreateDTO.getUser2_id()==null) {
+        if (chatCreateDTO.getSenderId()==null ||  chatCreateDTO.getRecipientId()==null) {
             return ResponseEntity.badRequest().build();
         }
 
-        chatServiceImpl.savePrivateChat(chat, chatCreateDTO.getUser_id(), chatCreateDTO.getUser2_id());
+        chatServiceImpl.savePrivateChat(chat, chatCreateDTO.getRecipientId(), chatCreateDTO.getSenderId());
         return ResponseEntity.ok().build();
 
     }
@@ -57,46 +58,101 @@ public class ChatController {
 
     @GetMapping("/all/{id}")
     public ResponseEntity<List<ChatRequestDTO>> findAllChats(@PathVariable String id, @RequestHeader("Authorization") String jwt) {
-        List<ChatMembers> chatMembers = chatMembersServiceImpl.findChatMembersByUserid(Long.valueOf(id));
+        try {
+            List<ChatMembers> chatMembers = chatMembersServiceImpl.findChatMembersByUserid(Long.valueOf(id));
 
-        if  (chatMembers.isEmpty()){
-            return ResponseEntity.notFound().build();
-        }
-
-        List<Long>  chatIds = new ArrayList<>();
-        for (ChatMembers members : chatMembers) {
-            if (chatServiceImpl.findChatByChatid(members.getChatid()).get().getType().equals("PRIVATE")) {
-                chatIds.add(members.getChatid());
+            if  (chatMembers.isEmpty()){
+                return ResponseEntity.notFound().build();
             }
-        }
 
-        List<ChatMembers> finalListMembers = new ArrayList<>();
-        for (Long chatid : chatIds) {
-            List<ChatMembers> members = chatMembersServiceImpl.findChatMembersByChatid(chatid);
-            for  (ChatMembers member : members) {
-                if (!member.getUserid().equals(Long.valueOf(id))) {
-                    finalListMembers.add(member);
+            List<Long>  chatIds = new ArrayList<>();
+            List<ChatRequestDTO> chats = new ArrayList<>();
+            for (ChatMembers members : chatMembers) {
+                Chat c = chatServiceImpl.findChatByChatid(members.getChatid()).get();
+                if (c.getType().equals("PRIVATE")) {
+                    chatIds.add(members.getChatid());
+                }
+                else{
+                    ChatRequestDTO c1 =  new ChatRequestDTO();
+                    c1.setChatId(c.getId());
+                    c1.setTitle(c.getTitle());
+                    List<ChatMembers> memberIds = chatMembersServiceImpl.findChatMembersByChatid(c.getId());
+                    List<Long>  userIds = new ArrayList<>();
+                    for (ChatMembers memberId : memberIds) {
+                        userIds.add(memberId.getUserid());
+                    }
+                    c1.setUserId(userIds);
+                    c1.setType(c.getType());
+                    chats.add(c1);
                 }
             }
+
+            List<ChatMembers> privateListMembers = new ArrayList<>();
+            for (Long chatid : chatIds) {
+                List<ChatMembers> members = chatMembersServiceImpl.findChatMembersByChatid(chatid);
+                for  (ChatMembers member : members) {
+                    if (!member.getUserid().equals(Long.valueOf(id))) {
+                        privateListMembers.add(member);
+                    }
+                }
+            }
+
+//            List<ChatRequestDTO> chats = new ArrayList<>();
+            for (ChatMembers chatMembers1 : privateListMembers) {
+                ChatRequestDTO chatRequestDTO = new ChatRequestDTO();
+                chatRequestDTO.setChatId(chatMembers1.getChatid());
+                chatRequestDTO.setUserId(Collections.singletonList(chatMembers1.getUserid()));
+                String username = userServiceClient.getUsername(
+                        chatMembers1.getUserid(),
+                        jwt
+                );
+                chatRequestDTO.setTitle(username);
+                chatRequestDTO.setType("PRIVATE");
+                chats.add(chatRequestDTO);
+            }
+
+
+
+            return ResponseEntity.ok().body(chats);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
         }
 
-        List<ChatRequestDTO> chats = new ArrayList<>();
-        for (ChatMembers chatMembers1 : finalListMembers) {
-            ChatRequestDTO chatRequestDTO = new ChatRequestDTO();
-            chatRequestDTO.setChatId(chatMembers1.getChatid());
-            chatRequestDTO.setUserId(chatMembers1.getUserid());
-            String username = userServiceClient.getUsername(
-                    chatMembers1.getUserid(),
-                    jwt
-            );
-            chatRequestDTO.setTitle(username);
-            chats.add(chatRequestDTO);
-        }
-
-        return ResponseEntity.ok().body(chats);
 
     }
 
+    @GetMapping("/{id}/members")
+    public ResponseEntity<List<Long>> getMembers(@PathVariable String id) {
+        List<ChatMembers> userIds = chatMembersServiceImpl.findChatMembersByChatid(Long.valueOf(id));
+        List<Long>  userIds2 = new ArrayList<>();
+        for (ChatMembers members : userIds) {
+            userIds2.add(members.getUserid());
+        }
+        return ResponseEntity.ok().body(userIds2);
+    }
+
+    @GetMapping("/{chatId}/member/{userId}")
+    public ResponseEntity<Boolean> isMember(@PathVariable Long chatId, @PathVariable Long userId) {
+        Chat chat = chatServiceImpl.findChatByChatid(chatId).orElse(null);
+        if (chat == null) {
+            return ResponseEntity.notFound().build();
+        }
+        List<ChatMembers> members = chatMembersServiceImpl.findChatMembersByChatid(chatId);
+        boolean ismember = false;
+        for (ChatMembers member : members) {
+            if (member.getUserid().equals(userId)) {
+                ismember = true;
+                break;
+            }
+        }
+        return ResponseEntity.ok(ismember);
+    }
+
+    @PostMapping("/private")
+    public ResponseEntity<Long> getOrCreatePrivateChat(@RequestBody ChatCreateDTO chatCreateDTO) {
+        Long chatId = chatMembersServiceImpl.findChatBetweenUsers(chatCreateDTO.getRecipientId(), chatCreateDTO.getSenderId());
+        return ResponseEntity.ok().body(chatId);
+    }
 
 
 }

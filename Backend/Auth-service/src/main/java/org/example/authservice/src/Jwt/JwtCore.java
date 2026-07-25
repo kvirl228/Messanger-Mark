@@ -18,7 +18,7 @@ public class JwtCore {
     public String generateAccessToken(UserDetailsImpl userDetails) {
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
-                .claim("id", String.valueOf(userDetails.getId()))
+                .claim("userId", String.valueOf(userDetails.getId()))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenValidity))
                 .signWith(SignatureAlgorithm.HS256, secret)

@@ -7,7 +7,6 @@ import org.example.chatservice.src.Entities.ChatMembers;
 import org.example.chatservice.src.Repositories.ChatRepository;
 import org.example.chatservice.src.Services.ChatServiceIntr;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +34,7 @@ public class ChatServiceImpl implements ChatServiceIntr {
     }
 
     @Override
-    public void savePrivateChat(Chat chat, Long ownerId, Long userId) {
+    public Chat savePrivateChat(Chat chat, Long ownerId, Long userId) {
 
         Chat chat1 = chatRepository.save(chat);
 
@@ -71,6 +70,7 @@ public class ChatServiceImpl implements ChatServiceIntr {
         }
 
 
+        return chat1;
     }
 
     @Override
@@ -96,4 +96,7 @@ public class ChatServiceImpl implements ChatServiceIntr {
         chatMembersServiceImpl.deleteChatMembersByChatid(chatid);
         chatRepository.deleteById(chatid);
     }
+
+
+
 }

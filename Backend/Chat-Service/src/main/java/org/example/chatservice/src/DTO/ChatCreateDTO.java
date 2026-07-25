@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ChatCreateDTO {
-
-    Long user_id;
-    Long user2_id;
+    Long senderId;
+    Long recipientId;
 }

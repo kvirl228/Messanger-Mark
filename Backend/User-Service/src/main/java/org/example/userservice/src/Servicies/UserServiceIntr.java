@@ -10,6 +10,6 @@ public interface UserServiceIntr {
     Optional<User> findUserById(Long id);
     Optional<User> findUserByUsername(String username);
     void createUser(User user);
-    boolean updateUser(User user);
+    void changeUsername(Long id, String username);
     void deleteUserById(Long id);
 }

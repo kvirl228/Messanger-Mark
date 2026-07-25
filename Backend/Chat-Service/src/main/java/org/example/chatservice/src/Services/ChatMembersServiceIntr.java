@@ -9,4 +9,5 @@ public interface ChatMembersServiceIntr {
     List<ChatMembers> findChatMembersByChatid(Long chatid);
     void deleteChatMembersByChatid(Long chatid);
     void save(ChatMembers chatMembers);
+    Long findChatBetweenUsers(Long userid, Long senderId);
 }

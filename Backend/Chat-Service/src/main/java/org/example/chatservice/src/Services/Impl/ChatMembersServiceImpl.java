@@ -1,6 +1,7 @@
 package org.example.chatservice.src.Services.Impl;
 
 import lombok.AllArgsConstructor;
+import org.example.chatservice.src.Entities.Chat;
 import org.springframework.stereotype.Service;
 import org.example.chatservice.src.Entities.ChatMembers;
 import org.example.chatservice.src.Repositories.ChatMembersRepository;
@@ -14,6 +15,8 @@ import java.util.List;
 public class ChatMembersServiceImpl implements ChatMembersServiceIntr {
 
     private ChatMembersRepository chatMembersRepository;
+
+    private ChatServiceImpl chatServiceImpl;
 
     @Override
     public List<ChatMembers> findChatMembersByUserid(Long userid) {
@@ -49,5 +52,29 @@ public class ChatMembersServiceImpl implements ChatMembersServiceIntr {
 //        }
 
         chatMembersRepository.save(chatMembers);
+    }
+
+    @Override
+    public Long findChatBetweenUsers(Long userid, Long senderId) {
+        List<ChatMembers> user1 = chatMembersRepository.findChatMembersByUserid(userid);
+        List<ChatMembers> user2 = chatMembersRepository.findChatMembersByUserid(senderId);
+
+        Long chatId = null;
+        for  (ChatMembers chatMembers : user1) {
+            for(ChatMembers chatMembers1 : user2) {
+                if(chatMembers.getChatid().equals(chatMembers1.getChatid())) {
+                    chatId = chatMembers1.getChatid();
+                    break;
+                }
+            }
+        }
+
+        if (chatId == null) {
+            Chat  chat = new Chat();
+            chat.setType("PRIVATE");
+            Chat chat1 = chatServiceImpl.savePrivateChat(chat, userid, senderId);
+            return chat1.getId();
+        }
+        return chatId;
     }
 }

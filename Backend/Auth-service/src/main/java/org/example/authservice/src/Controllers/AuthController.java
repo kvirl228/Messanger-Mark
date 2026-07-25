@@ -1,14 +1,15 @@
 package org.example.authservice.src.Controllers;
 
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
-import org.example.authservice.src.Dto.UserRequestName;
-import org.example.authservice.src.Dto.UserRequestSignUp;
+import org.example.authservice.src.Dto.*;
 import org.example.authservice.src.Entities.UserAuth;
 import org.example.authservice.src.Entities.UserDetailsImpl;
 import org.example.authservice.src.Jwt.JwtCore;
+import org.example.authservice.src.Services.Impl.EmailService;
 import org.example.authservice.src.Services.Impl.UserAuthServiceIntrImpl;
 import org.example.authservice.src.Services.Impl.UserDetailsServiceImpl;
 import org.springframework.http.HttpStatus;
@@ -18,13 +19,14 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
+
+import java.time.LocalDateTime;
+import java.util.Random;
 
 @RestController
 @RequestMapping("/auth")
@@ -38,6 +40,8 @@ public class AuthController {
     private UserDetailsServiceImpl userDetailsService;
 
     private final RestClient restClient;
+
+    private EmailService emailService;
 
     private PasswordEncoder passwordEncoder;
 
@@ -67,19 +71,23 @@ public class AuthController {
             userAuth.setEmail(userRequestSignUp.getEmail());
             userAuth.setPassword(passwordEncoder.encode(userRequestSignUp.getPassword()));
 
-            ResponseEntity<Long> response = restClient.post()
-                    .uri("http://localhost:8031/api/users/create")
-                    .body(userRequestName)
-                    .retrieve()
-                    .toEntity(Long.class);
 
+            ResponseEntity<Long> response = restClient.post() .uri(
+                    "http://localhost:8031/api/users/create")
+                    .body(userRequestName) .retrieve()
+                    .toEntity(Long.class);
             Long id = response.getBody();
             userAuth.setUserId(id);
-            System.out.println(userAuth.getPassword());
+            String code = String.valueOf(100000 + new Random().nextInt(900000));
+            userAuth.setVerificationcode(code);
+            userAuth.setEnabled(false);
+            userAuth.setCodeExpiration(LocalDateTime.now().plusMinutes(2));
+
+            emailService.sendVerificationCode(userRequestSignUp.getEmail(), code);
+
             userAuthServiceImpl.save(userAuth);
 
-            return ResponseEntity.status(response.getStatusCode())
-                    .body(response.getBody());
+            return ResponseEntity.ok().build();
 
         } catch (Exception e) {
 
@@ -90,10 +98,56 @@ public class AuthController {
 
     }
 
+    @PostMapping("/verify")
+    public ResponseEntity<?> verify(@RequestBody VerifyEmailDTO emailDTO){
+
+        UserAuth userAuth = userAuthServiceImpl.findByEmail(emailDTO.getEmail()).orElseThrow();
+
+        if(!userAuth.getVerificationcode().equals(emailDTO.getCode())){
+            return ResponseEntity.badRequest().build();
+        }
+
+        if(userAuth.getCodeExpiration().isBefore(LocalDateTime.now())){
+            return ResponseEntity.badRequest().build();
+        }
+
+        userAuth.setEnabled(true);
+        userAuth.setVerificationcode(null);
+        userAuth.setCodeExpiration(null);
+
+        userAuthServiceImpl.save(userAuth);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/resend")
+    public ResponseEntity<?> resend(@RequestBody ResendDTO dto){
+        try{
+            UserAuth userAuth = userAuthServiceImpl.findByEmail(dto.getEmail()).orElseThrow();
+            String code = String.valueOf(100000 + new Random().nextInt(900000));
+            if (!userAuth.getCodeExpiration().isBefore(LocalDateTime.now())){
+                return ResponseEntity.badRequest().build();
+            }
+            userAuth.setCodeExpiration(LocalDateTime.now().plusMinutes(2));
+            userAuth.setVerificationcode(code);
+            emailService.sendVerificationCode(dto.getEmail(), code);
+            userAuthServiceImpl.save(userAuth);
+            return ResponseEntity.ok().build();
+        }catch (Exception e){
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+
+    }
+
     //Авторизация
     @PostMapping("/signin")
     public ResponseEntity<?> signin(@RequestBody UserRequestSignUp userRequest, HttpServletResponse response){
         Authentication authentication = null;
+
+        UserAuth userAuth = userAuthServiceImpl.findByEmail(userRequest.getEmail()).orElseThrow();
+        if (!userAuth.isEnabled()){
+            return ResponseEntity.badRequest().build();
+        }
+
         try{
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(userRequest.getEmail(), userRequest.getPassword())
@@ -105,6 +159,8 @@ public class AuthController {
         }catch (BadCredentialsException e){
             return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
         };
+
+
         //создание jwt token
         SecurityContextHolder.getContext().setAuthentication(authentication);
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
@@ -144,6 +200,55 @@ public class AuthController {
 
         return ResponseEntity.ok().body(newAccessToken);
     }
+
+    @PatchMapping("/change/password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO changePasswordDTO){
+            UserAuth userAuth = userAuthServiceImpl.findByID(Long.valueOf(changePasswordDTO.getId())).orElseThrow();
+            System.out.println(passwordEncoder.encode(changePasswordDTO.getOldPassword()));
+            System.out.println(userAuth.getPassword());
+            if (passwordEncoder.matches(changePasswordDTO.getOldPassword(), userAuth.getPassword())) {
+                userAuthServiceImpl.updatePassword(Long.valueOf(changePasswordDTO.getId()), passwordEncoder.encode(changePasswordDTO.getNewPassword()));
+                return  ResponseEntity.ok().build();
+            }
+            else  {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            }
+
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletResponse response) {
+
+        Cookie cookie = new Cookie("refreshToken", null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath("/auth/refresh");
+        cookie.setMaxAge(0);
+
+        response.addCookie(cookie);
+
+        return ResponseEntity.ok().build();
+    }
+
+//    @PostMapping("/send/mail")
+//    public ResponseEntity<?> sendMail(@RequestBody VerifyEmailDTO verifyEmailDTO){
+//
+//
+//
+//    }
+//
+//    @PostMapping("/check/mail")
+//    public ResponseEntity<?> checkMail(@RequestBody )
+//
+//    @DeleteMapping("/delete/{id}")
+//    public ResponseEntity<?> delete(@PathVariable Long id, @RequestBody UserRequestSignUp userRequest){
+//        UserAuth user =  userAuthServiceImpl.findByID(Long.valueOf(id)).orElseThrow();
+//        if (!passwordEncoder.matches(user.getPassword(), userRequest.getPassword())){
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+//        }
+//
+//
+//    }
 
 
 }

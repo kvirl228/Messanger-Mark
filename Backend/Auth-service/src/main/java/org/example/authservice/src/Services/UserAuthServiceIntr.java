@@ -8,5 +8,6 @@ public interface UserAuthServiceIntr {
     Optional<UserAuth> findByEmail(String email);
     Optional<UserAuth> findByID(Long id);
     void save(UserAuth user);
+    void updatePassword(Long id, String newPassword);
     void deleteByID(Long id);
 }

@@ -1,6 +1,7 @@
 package org.example.userservice.src.Servicies.Impl;
 
 import lombok.AllArgsConstructor;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.example.userservice.src.Entities.User;
 import org.example.userservice.src.Repositories.UserRepository;
@@ -36,14 +37,10 @@ public class UserServiceImpl implements UserServiceIntr {
     }
 
     @Override
-    public boolean updateUser(User user) {
-        User oldUser = userRepository.findById(user.getId()).get();
-        if (oldUser.getUsername().equals(user.getUsername())){
-            return false;
-        }
-        oldUser.setUsername(user.getUsername());
-        userRepository.save(oldUser);
-        return true;
+    public void changeUsername(Long id, String username) {
+        User user = userRepository.findById(Long.valueOf(id)).orElseThrow();
+        user.setUsername(username);
+        userRepository.save(user);
     }
 
     @Override

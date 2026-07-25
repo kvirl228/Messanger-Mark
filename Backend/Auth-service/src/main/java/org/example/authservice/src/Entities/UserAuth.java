@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
@@ -24,6 +26,15 @@ public class UserAuth {
 
     @Column(name = "c_password")
     String password;
+
+    @Column(name = "c_enabled")
+    boolean enabled;
+
+    @Column(name = "c_verificationcode")
+    String verificationcode;
+
+    @Column(name = "c_codeexpiration")
+    LocalDateTime codeExpiration;
 
     @Column(name = "c_userid")
     Long userId;

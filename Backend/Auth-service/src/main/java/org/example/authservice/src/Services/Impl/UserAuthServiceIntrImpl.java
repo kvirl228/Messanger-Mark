@@ -30,6 +30,13 @@ public class UserAuthServiceIntrImpl implements UserAuthServiceIntr {
     }
 
     @Override
+    public void updatePassword(Long id, String newPassword) {
+        UserAuth userAuth = findByID(id).orElseThrow();
+        userAuth.setPassword(newPassword);
+        userAuthRepository.save(userAuth);
+    }
+
+    @Override
     public void deleteByID(Long id) {
         userAuthRepository.deleteById(id);
     }

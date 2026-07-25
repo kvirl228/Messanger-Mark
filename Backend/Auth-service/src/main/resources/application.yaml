@@ -1,4 +1,15 @@
 spring:
+  mail:
+      host: smtp.yandex.ru
+      port: 465
+      username: markmessanger@yandex.ru
+      password: zpmqfaumfymfwcpx
+      properties:
+        mail:
+          smtp:
+            auth: true
+            ssl:
+              enable: true
   datasource:
     url: jdbc:postgresql://localhost:5432/UsersAuth
     username: postgres
@@ -23,3 +34,5 @@ server:
 logging:
   level:
     org.flywaydb: DEBUG
+    org.springframework.mail: DEBUG
+    org.eclipse.angus.mail: DEBUG
