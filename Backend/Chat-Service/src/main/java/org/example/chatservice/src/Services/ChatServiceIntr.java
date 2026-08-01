@@ -9,7 +9,7 @@ public interface ChatServiceIntr {
     Optional<Chat> findChatByChatid(Long chatid);
     List<Chat> findChatByType(String type);
     List<Chat> findChatByChatidAndType(Long chatid, String type);
-    Chat savePrivateChat(Chat chat, Long ownerId, Long uerId);
-    void SaveGroupChat(Chat chat, Long ownerId, List<Long> usersId);
+    Long savePrivateChat(Chat chat);
+    Long SaveGroupChat(Chat chat);
     void deleteChatByChatid(Long chatid);
 }

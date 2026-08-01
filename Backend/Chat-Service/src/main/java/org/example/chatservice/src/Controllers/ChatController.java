@@ -28,16 +28,15 @@ public class ChatController {
 
     @PostMapping("/private/create")
     public ResponseEntity<?> createChat(@RequestBody ChatCreateDTO chatCreateDTO) {
-
         Chat chat = new Chat();
         chat.setType("PRIVATE");
-
         if (chatCreateDTO.getSenderId()==null ||  chatCreateDTO.getRecipientId()==null) {
             return ResponseEntity.badRequest().build();
         }
-
-        chatServiceImpl.savePrivateChat(chat, chatCreateDTO.getRecipientId(), chatCreateDTO.getSenderId());
-        return ResponseEntity.ok().build();
+        Long chatId = chatServiceImpl.savePrivateChat(chat);
+        chatMembersServiceImpl.save(chatId, "USER", chatCreateDTO.getSenderId());
+        chatMembersServiceImpl.save(chatId, "USER", chatCreateDTO.getRecipientId());
+        return ResponseEntity.ok().body(chatId);
 
     }
 
@@ -51,7 +50,11 @@ public class ChatController {
             return ResponseEntity.badRequest().build();
         }
 
-        chatServiceImpl.SaveGroupChat(chat, groupCreateDTO.getOwnerId(), groupCreateDTO.getMemberIds());
+        Long groupId = chatServiceImpl.SaveGroupChat(chat);
+        chatMembersServiceImpl.save(groupId, "OWNER", groupCreateDTO.getOwnerId());
+        for (Long id : groupCreateDTO.getMemberIds()){
+            chatMembersServiceImpl.save(groupId, "USER", id);
+        }
         return ResponseEntity.ok().build();
 
     }
@@ -147,6 +150,14 @@ public class ChatController {
         }
         return ResponseEntity.ok(ismember);
     }
+
+    @GetMapping("/{userId}/between/{user2Id}")
+    public ResponseEntity<Long> chatBetweenTwoUsers(@PathVariable Long userId, @PathVariable Long user2Id){
+        Long chatId = chatMembersServiceImpl.findChatBetweenUsers(userId, user2Id);
+        return ResponseEntity.ok().body(chatId);
+    }
+
+
 
     @PostMapping("/private")
     public ResponseEntity<Long> getOrCreatePrivateChat(@RequestBody ChatCreateDTO chatCreateDTO) {

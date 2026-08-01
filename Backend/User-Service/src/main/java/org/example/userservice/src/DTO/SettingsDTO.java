@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserRequestDto {
-    Long id;
-    String username;
-    String bio;
+public class SettingsDTO {
+    String issend;
+    String isadd;
+    String isview;
 }

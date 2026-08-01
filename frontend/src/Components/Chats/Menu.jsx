@@ -6,21 +6,23 @@ import Chat from './Chat';
 import GroupChat from './GroupChat';
 import ChannelChat from './ChannelChat';
 import { auth_service, chat_service, refreshToken, user_service } from '../../properties';
+import { useUser } from "../context/UserContext";
 
 function Chats() {
+
+    const { user, setUser } = useUser();
+
     const navigate = useNavigate()
     const [searchCheck, setSearchCheck] = useState(true)
     const [isClick, setIsClick] = useState(true)
-    const [userid, setuserId] = useState(-1)
+
     const [search, setSearch] = useState('')
     const [chats, setChats] = useState([])
-
 
     const [userInfo, setUserInfo] = useState([])
     const [userChats, setUserChats] = useState([])
     const [userGroups, setUserGroups] = useState([])
     const [userChannels, setUserChannels] = useState([])
-    const [activeCategory, setActiveCategory] = useState('chats') 
     const [selectedChatId, setSelectedChatId] = useState(null)
     const [chat, setChat] = useState(<></>)
     
@@ -30,50 +32,79 @@ function Chats() {
         if (e.target.value.trim() === '') {
             setSearchCheck(true)
             setSelectedChatId(null) 
-            getAllChatsOfUser(userid)
+            getAllChatsOfUser(user.userId)
         }
     }
 
     const toSettings = () => navigate("/settings")
     const toGroupCreate = () => navigate("/group")
 
-    const clickChat = (value, id, name, img, creatorId) => {
-        if (selectedChatId === id) {
-            console.log('Deselecting chat:', id)
+    const clickChat = (value, chatId, user2Id, bio, name, img, type) => {
+        if (!isClick ) {
+            console.log('Deselecting chat:', chatId);
             setSelectedChatId(null)
             setIsClick(true)
             setChat(<></>)
-        } else {
-            console.log('Selecting new chat:', id)
+        }else {
+            let isContact = false
+            if (user.contacts && user.contacts.length > 0) {
+                for (let i = 0; i < user.contacts.length; i++) {
+                    if (user.contacts[i] === user2Id) {       
+                        isContact = true
+                        break
+                    }
+                }
+            } 
             setIsClick(!value)
-            setSelectedChatId(id)
+            
+            if(chatId === null){
+                if ( chats.length > 0) {
+                    for (let i = 0; i < chats.length; i++) {
+                        if (chats[i].type=="PRIVATE" && chats[i].userId[0] === user2Id) {
+                            chatId = chats[i].chatId
+                            break
+                        }else if (chats[i].type=="GROUP" && chats[i].title === name) { 
+                            chatId = chats[i].chatId
+                            break
+                        }
+                    }
+                    setSelectedChatId(chatId)  
+                    setChat(<Chat
+                        chatid={chatId}
+                        user2Id={user2Id}
+                        username={name}
+                        img={img}
+                        bio={bio}
+                        contact={isContact}
+                        type={type}
+                    />)
 
-            if(activeCategory === 'chats'){
+                }else{
+                    setSelectedChatId(-1)  
+                    setChat(<Chat
+                        chatid={null}
+                        user2Id={user2Id}
+                        username={name}
+                        img={img}
+                        bio={bio}
+                        contact={isContact}
+                        type={type}
+                    />)
+                }
+            }
+            else{
+                setSelectedChatId(chatId)  
                 setChat(<Chat
-                    userId={userid}
-                    user2Id={id}
+                    chatid={chatId}
+                    user2Id={user2Id}
                     username={name}
                     img={img}
+                    bio={bio}
+                    contact={isContact}
+                    type={type}
                 />)
             }
-            else if(activeCategory == 'groups'){
-                setChat(<GroupChat
-                    userId={userid}
-                    groupId={id}
-                    groupName={name}
-                    groupAvatar={img}
-                    creatorId={creatorId}
-                />)
-            }
-            else if(activeCategory == 'channels'){
-                setChat(<ChannelChat
-                            userId={userid}
-                            channelId={id}
-                            channelName={name}
-                            channelAvatar = {img}
-                            ownerId={creatorId}
-                        />)
-            }
+            
         }
     }
 
@@ -110,7 +141,8 @@ function Chats() {
 
             if (response.ok) {
                 const data = await response.json();
-                if (data.id === userid) return
+                if (data.id === user.userId) return
+                console.log(data)
                 setUserInfo([data])
                 setSearchCheck(false)
             } else if (response.status === 401) {
@@ -126,35 +158,10 @@ function Chats() {
         }
     }
 
-    const getUserId = async () => {
-        try {
-            const response = await fetch(`${user_service}/api/users/userid/${localStorage.getItem("token")}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem("token")}`,
-                    'Content-Type': 'application/json'
-                },
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                setuserId(data)
-                return data
-            } else if (response.status === 401) {
-                if (await refreshToken()) {
-                    return await getUserId()
-                }
-            }
-            return null
-        } catch (error) {
-            console.error('Ошибка:', error);
-            return null
-        }
-    }
 
-    const getAllChatsOfUser = async (id) => {
+    const getAllChatsOfUser = async () => {
         try{
-            const response = await fetch(`${chat_service}/api/chats/all/${id}`, {
+            const response = await fetch(`${chat_service}/api/chats/all/${user.userId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem("token")}`,
@@ -168,24 +175,18 @@ function Chats() {
             }
             else if (response.status === 401) {
                 if (await refreshToken()) {
-                    await getAllChatsOfUser(id)
+                    await getAllChatsOfUser()
                 }
             }
 
         }catch(error){
-            console.error('Ошибка при загрузке чатов:', error);
+            // console.error('Ошибка при загрузке чатов:', error);
         }
     }
 
     useEffect(() => {
-        const init = async () => {
-            const id = await getUserId()
-            console.log(localStorage.getItem("token"))
-            if (id) {
-                await getAllChatsOfUser(id)
-            }
-        }
-        init()
+         getAllChatsOfUser()
+        
     }, [])
 
     return (
@@ -201,7 +202,6 @@ function Chats() {
 
                 <div className="folder">
                     {!searchCheck ? (
-                        // Поиск пользователей
                         userInfo.map((user, index) => (
                             <ChatInfo
                                 key={index}
@@ -209,13 +209,12 @@ function Chats() {
                                 // img = {user.avatar}
                                 text=""
                                 time=""
-                                func={() => clickChat(isClick, user.id, user.username, user.avatar)}
+                                func={() => clickChat(isClick, null, user.id, user.bio, user.username, user.avatar)}
                                 isSelected={selectedChatId === user.id}
                                 chatId={user.id}
                             />
                         ))
                     ) : (
-                        // Отображаем данные в зависимости от активной категории
                         <>
                             {chats.length != 0 && chats.map( (item, index) => (
                                 <ChatInfo
@@ -224,7 +223,7 @@ function Chats() {
                                     img={item.avatar}
                                     text={item.lastMessage?.text || ""}
                                     time={item.lastMessage?.timestamp || ""}
-                                    func = {() => clickChat(isClick, item.chatId, item.title, item.avatar)}
+                                    func = {() => clickChat(isClick, item.chatId, item.userId, item.bio, item.title, item.avatar, item.type)}
                                     isSelected={selectedChatId === item.chatId}
                                     chatId={item.chatId}
                                 />
@@ -249,6 +248,14 @@ function Chats() {
                         >
                             <span className="create_text">📢</span>
                             <span className="create_text">Канал</span>
+                        </button>
+                        <button
+                            className="create_button contact_create"
+                            onClick={() => navigate("/contacts")}
+                            title="Контакты"
+                        >
+                            <span className="create_text">👤</span>
+                            <span className="create_text">Контакты</span>
                         </button>
                     </div>
                 )}

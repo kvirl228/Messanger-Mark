@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
@@ -21,6 +23,9 @@ public class User {
     @Column(name = "c_username")
     String username;
 
+    @Column(name = "c_contacts")
+    List<Long> contacts;
+
     @Column(name = "c_bio")
     String bio;
 
@@ -29,4 +34,13 @@ public class User {
 
     @Column(name = "c_avatar")
     String avatar;
+
+    @Column(name = "c_issend")
+    String issend;
+
+    @Column(name = "c_isadd")
+    String isadd;
+
+    @Column(name = "c_isview")
+    String isview;
 }

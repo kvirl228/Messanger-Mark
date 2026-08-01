@@ -36,6 +36,15 @@ public class UserAuthServiceIntrImpl implements UserAuthServiceIntr {
         userAuthRepository.save(userAuth);
     }
 
+    public void forgotPassword(String email, String password){
+        UserAuth user = userAuthRepository.findByEmail(email).orElseThrow();
+        if(user.getVerificationcode()==null){
+            user.setPassword(password);
+            userAuthRepository.save(user);
+        }
+
+    }
+
     @Override
     public void deleteByID(Long id) {
         userAuthRepository.deleteById(id);

@@ -45,16 +45,16 @@ public class MessageServiceImpl implements MessageServiceIntr {
         messageRepository.save(message);
     }
 
-    public void startPrivateChat(StartPrivateChatDTO dto, Long senderId) {
-        Long chatId = chatServiceClient.getOrCreatePrivateChat(senderId, dto.getRecipientId());
-        send(chatId, senderId, dto.getText());
+    public void startPrivateChat(StartPrivateChatDTO dto, Long senderId, String jwt) {
+        Long chatId = chatServiceClient.getOrCreatePrivateChat(senderId, dto.getRecipientId(), jwt);
+        send(chatId, senderId, dto.getText(), jwt);
     }
 
-    public void sendMessage(SendMessageDTO dto, Long senderId) {
-        send(dto.getChatId(), senderId, dto.getText());
+    public void sendMessage(SendMessageDTO dto, Long senderId, String jwt) {
+        send(dto.getChatId(), senderId, dto.getText(), jwt);
     }
 
-    private void send(Long chatId, Long senderId, String text) {
+    private void send(Long chatId, Long senderId, String text, String jwt) {
         Message message = Message.builder()
                 .chatid(chatId)
                 .senderid(senderId)
@@ -64,14 +64,14 @@ public class MessageServiceImpl implements MessageServiceIntr {
 
         Message savedMessage = messageRepository.save(message);
 
-        List<Long> members = chatServiceClient.getMembers(chatId);
+        List<Long> members = chatServiceClient.getMembers(chatId, jwt);
 
         MessageResponseDTO dto = MessageResponseDTO.builder()
                 .id(savedMessage.getId())
                 .chatId(savedMessage.getChatid())
                 .senderId(savedMessage.getSenderid())
                 .text(savedMessage.getText())
-                .sendTime(savedMessage.getSendtime())
+//                .sendTime(savedMessage.getSendtime())
                 .build();
 
         for (Long memberId : members) {

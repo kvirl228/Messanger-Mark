@@ -66,11 +66,18 @@ public class AuthController {
 
             UserRequestName userRequestName = new UserRequestName();
             userRequestName.setUsername(userRequestSignUp.getUsername());
+            userRequestName.setBio(userRequestSignUp.getBio());
 
             UserAuth userAuth =  new UserAuth();
             userAuth.setEmail(userRequestSignUp.getEmail());
             userAuth.setPassword(passwordEncoder.encode(userRequestSignUp.getPassword()));
 
+            String code = String.valueOf(100000 + new Random().nextInt(900000));
+            userAuth.setVerificationcode(code);
+            userAuth.setEnabled(false);
+            userAuth.setCodeExpiration(LocalDateTime.now().plusMinutes(5));
+
+            emailService.sendVerificationCode(userRequestSignUp.getEmail(), code);
 
             ResponseEntity<Long> response = restClient.post() .uri(
                     "http://localhost:8031/api/users/create")
@@ -78,12 +85,7 @@ public class AuthController {
                     .toEntity(Long.class);
             Long id = response.getBody();
             userAuth.setUserId(id);
-            String code = String.valueOf(100000 + new Random().nextInt(900000));
-            userAuth.setVerificationcode(code);
-            userAuth.setEnabled(false);
-            userAuth.setCodeExpiration(LocalDateTime.now().plusMinutes(2));
 
-            emailService.sendVerificationCode(userRequestSignUp.getEmail(), code);
 
             userAuthServiceImpl.save(userAuth);
 
@@ -116,6 +118,48 @@ public class AuthController {
         userAuth.setCodeExpiration(null);
 
         userAuthServiceImpl.save(userAuth);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/codeForReset")
+    public ResponseEntity<?> sendCodeFroReset(@RequestBody VerifyEmailDTO dto){
+
+        UserAuth user = userAuthServiceImpl.findByEmail(dto.getEmail()).orElseThrow();
+
+        if(user.getVerificationcode()!=null){
+            return ResponseEntity.badRequest().build();
+        }
+
+        String code = String.valueOf(100000 + new Random().nextInt(900000));
+        user.setVerificationcode(code);
+        userAuthServiceImpl.save(user);
+        emailService.sendCheckCode(dto.getEmail(), code);
+
+        return ResponseEntity.ok().build();
+
+    }
+
+    @PostMapping("/checkCode")
+    public ResponseEntity<?> checkCode(@RequestBody VerifyEmailDTO dto){
+
+        UserAuth user = userAuthServiceImpl.findByEmail(dto.getEmail()).orElseThrow();
+        if(user.getVerificationcode()!=null &&  user.getVerificationcode().equals(dto.getCode())){
+            user.setVerificationcode(null);
+            userAuthServiceImpl.save(user);
+            return ResponseEntity.ok().build();
+        }else{
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PatchMapping("/refresh/password")
+    public ResponseEntity<?> refreshPassword(@RequestBody ForgotPasswordDTO dto){
+        if(dto.getNewPassword().isEmpty()){
+            return ResponseEntity.badRequest().build();
+        }
+        UserAuth user = userAuthServiceImpl.findByEmail(dto.getEmail()).orElseThrow();
+        user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        userAuthServiceImpl.save(user);
         return ResponseEntity.ok().build();
     }
 

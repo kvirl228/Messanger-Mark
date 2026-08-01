@@ -8,6 +8,6 @@ public interface ChatMembersServiceIntr {
     List<ChatMembers> findChatMembersByUserid(Long userid);
     List<ChatMembers> findChatMembersByChatid(Long chatid);
     void deleteChatMembersByChatid(Long chatid);
-    void save(ChatMembers chatMembers);
+    void save(Long chatId, String role, Long userId);
     Long findChatBetweenUsers(Long userid, Long senderId);
 }

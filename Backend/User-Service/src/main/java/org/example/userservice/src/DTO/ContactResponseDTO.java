@@ -1,5 +1,4 @@
-package org.example.authservice.src.Dto;
-
+package org.example.userservice.src.DTO;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -8,9 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserRequestSignUp {
+public class ContactResponseDTO {
+    Long contactId;
     String username;
-    String bio;
-    String password;
-    String email;
 }

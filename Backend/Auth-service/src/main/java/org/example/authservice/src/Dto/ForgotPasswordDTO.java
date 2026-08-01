@@ -1,6 +1,5 @@
 package org.example.authservice.src.Dto;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -8,9 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserRequestSignUp {
-    String username;
-    String bio;
-    String password;
+public class ForgotPasswordDTO {
     String email;
+    String newPassword;
 }

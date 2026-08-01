@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
+import { auth_service, user_service, chat_service, message_service } from "../../properties"
 import './Chat.css';
 
-function Chat({ userId, user2Id, username , img}) {
+import { useUser } from "../context/UserContext";
+import WebSocketService from "../../Service/WebSocketService";
+
+function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
+
+  const { user, setUser } = useUser();
+
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isClick, setIsClick] = useState(true)
+  const [chatId, setChatId] = useState(chatid);
   const [deleteId, setDeleteId] = useState(0)
   const [showUserPopup, setShowUserPopup] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
-  const [isContact, setIsContact] = useState(false);
+  const [isContact, setIsContact] = useState(contact);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState('');
 
@@ -32,176 +40,52 @@ function Chat({ userId, user2Id, username , img}) {
       return false
     }
   }
-  const subscribe = async () => {
+    
+  const sendMessage = () => {
 
+    if (inputText.trim() === "") return;
+
+    // Первый диалог
+    if (chatId == null) {
+
+        WebSocketService.send("/app/chat.start", {
+            recipientId: user2Id,
+            text: inputText
+        });
+
+    }
+    // Обычное сообщение
+    else {
+
+        WebSocketService.send("/app/chat.send", {
+            chatId: chatId,
+            text: inputText
+        });
+
+    }
+
+    setInputText("");
+
+  };
+  
+  const getMessages = async () => {
+    console.log("GET MESSAGES FOR CHAT ID:", chatId);
     try {
-      const response = await fetch(`http://localhost:8080/api/messages/twoId?id1=${userId}&id2=${user2Id}`, {
+      const response = await fetch(`${message_service}/all/${chatId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem("token")}`,
           'Content-Type': 'application/json'
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setMessages([])
-        setMessages(prevMessages => [...prevMessages, ...data]);
-        // setTimeout(() => {
-        //   subscribe()
-        // }, 1500)
-
-      }
-      else if (response.status === 401) {
-        if (await refreshToken()) {
-          return await subscribe()
         }
-      }
-      else {
-        console.log("dsfads")
-      }
-    }
-    catch (error) {
-      // setTimeout(() => {
-      //   subscribe()
-      // }, 1)
-    }
-  }
-
-  const checkContact = async () => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/users/contacts/find?id1=${userId}&id2=${user2Id}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          'Content-Type': 'application/json'
-        },
-      });
-      if (response.ok) {
+      }); if (response.ok) {
         const data = await response.json();
-        console.log(data.id)  
-        console.log("есть контакт")
-        setIsContact(true)
-      }
-      else {
-        console.log("нет контакта")
-        setIsContact(false)
-      }
-    }
-    catch (error) {
-      console.log("error contact", error)
-    }
-  }
-
-  const sendMessage = async () => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/messages/send/${user2Id}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: inputText,
-          senderId: userId,
-        })
-      });
-
-
-      if (response.ok) {
-        const message = await response.json()
-        const newMessage = [...messages, message]
-        setMessages(newMessage)
-      }
-      else {
-        alert("Eror")
-      }
-    } catch (error) {
-      console.error('Ошибка:', error);
-    }
-
-    setInputText('')
-  }
-
-  // Новая функция для редактирования сообщения
-  const editMessage = async (messageId, newText) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/messages/${messageId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: newText
-        })
-      });
-
-      if (response.ok) {
-        const updatedMessage = await response.json();
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
-            msg.id === messageId ? updatedMessage : msg
-          )
-        );
-        setEditingMessageId(null);
-        setEditingText('');
-        setIsClick(true);
-      } else if (response.status === 401) {
-        if (await refreshToken()) {
-          await editMessage(messageId, newText);
-        }
+        setMessages(Array.isArray(data) ? data : [data]);
+        console.log("MESSAGES:", data);
       } else {
-        alert("Ошибка при редактировании сообщения");
+        console.error('Ошибка при получении сообщений');
       }
     } catch (error) {
-      console.error('Ошибка:', error);
-      alert("Ошибка при редактировании сообщения");
-    }
-  };
-
-  // Новая функция для начала редактирования
-  const startEditing = (messageId, currentText) => {
-    setEditingMessageId(messageId);
-    setEditingText(currentText);
-    setIsClick(false);
-  };
-
-  // Новая функция для отмены редактирования
-  const cancelEditing = () => {
-    setEditingMessageId(null);
-    setEditingText('');
-    setIsClick(true);
-  };
-
-  const deleteMessage = async (id) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/messages/${id}`, {
-        method: "DELETE",
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (response.ok) {
-        setIsClick(true)
-        subscribe()
-      } else if (response.status === 403) {
-        alert("Вы можете удалять только свои сообщения");
-      } else if (response.status === 401) {
-        if (await refreshToken()) {
-          await deleteMessage(id);
-        }
-      }
-      else {
-        window.location.reload();
-      }
-
-      return false
-    } catch (error) {
-
-      return false
+      console.error('Ошибка при получении сообщений:', error);
     }
   }
 
@@ -211,31 +95,46 @@ function Chat({ userId, user2Id, username , img}) {
   }
 
   const handleUsernameClick = async () => {
-    checkContact();
+    // checkContact();
     setShowUserPopup(true);
     setUserInfo({
       username: username,
       online: true,
-      bio: 'Тестовый пользователь'
+      bio: bio 
     });
   }
 
   const addToContacts = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/users/contacts/add', {
-        method: 'POST',
+      console.log(user.userId, user2Id)
+      const response = await fetch(`${user_service}/api/users/add/contact`, {
+        method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem("token")}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          userId: userId,
-          contactId: user2Id,
+          userId: user.userId,
+          contactId: user2Id[0],
         })
       });
-
-
       if (response.ok) {
+        setIsContact(true)
+        try{
+                const userResponse = await fetch(`${user_service}/api/users/user/info/${localStorage.getItem("token")}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem("token")}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (userResponse.ok) {
+                    const user = await userResponse.json();
+                    setUser(user);
+                }
+            } catch (error) {
+                console.error('Ошибка при получении информации о пользователе:', error);
+            }
         alert("yes")
       }
       else {
@@ -247,16 +146,17 @@ function Chat({ userId, user2Id, username , img}) {
   }
 
   const removeFromContacts = async () => {
+    console.log(user.userId, user2Id)
     try {
-      const response = await fetch('http://localhost:8080/api/users/contacts/delete', {
-        method: 'DELETE',
+      const response = await fetch(`${user_service}/api/users/delete/contact`, {
+        method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem("token")}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          userId: userId,
-          contactId: user2Id,
+          userId: user.userId,
+          contactId: user2Id[0]
         })
       });
       if (response.ok) {
@@ -278,7 +178,7 @@ function Chat({ userId, user2Id, username , img}) {
 
   const deleteChat = async () => {
     try {
-      const response = await fetch(`http://localhost:8080/api/chats/${userId}/${user2Id}`, {
+      const response = await fetch(`${chat_service}/api/chats/${user.userId}/${user2Id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem("token")}`,
@@ -297,8 +197,44 @@ function Chat({ userId, user2Id, username , img}) {
     }
   }
 
+//   const sendMessage = () => {
+
+//     if (inputText.trim() === "")
+//         return;
+
+//     WebSocketService.send(
+//         "/app/chat.send",
+//         {
+
+//             chatId: user2Id,
+//             text: inputText
+
+//         }
+//     );
+
+//     setInputText("");
+
+// }
+
   useEffect(() => {
-    subscribe()
+    console.log(chatId, user2Id, username, bio, img, contact, type);
+    getMessages();
+   const listener = (message) => {
+
+        console.log(message);
+
+    };
+
+    WebSocketService.addListener(listener);
+
+    return () => {
+
+        WebSocketService.removeListener(listener);
+
+    };
+
+    
+
     
   }, [])
 
@@ -344,10 +280,7 @@ function Chat({ userId, user2Id, username , img}) {
         ) : (
           <div className="messages-list">
             {messages.map((msg, index) => (
-              <div
-                key={`${msg.timestamp}-${index}`}
-                className={`message-wrapper ${msg.senderId === userId ? 'my_message' : 'their_message'}`}
-              >
+              <div key={`${msg.timestamp}-${index}`} className={`message-wrapper ${msg.senderid === user.userId ? 'my_message' : 'their_message'}`}>
                 <div className="message-bubble">
                   {editingMessageId === msg.id ? (
                     // Режим редактирования
@@ -362,14 +295,14 @@ function Chat({ userId, user2Id, username , img}) {
                       <div className="message-edit-actions">
                         <button 
                           className="edit-save-btn"
-                          onClick={() => editMessage(msg.id, editingText)}
+                          // onClick={() => editMessage(msg.id, editingText)}
                           disabled={!editingText.trim()}
                         >
                           💾
                         </button>
                         <button 
                           className="edit-cancel-btn"
-                          onClick={cancelEditing}
+                          // onClick={cancelEditing}
                         >
                           ❌
                         </button>
@@ -378,30 +311,30 @@ function Chat({ userId, user2Id, username , img}) {
                   ) : (
                     // Обычный режим отображения
                     <>
-                      <div className="message-content">{msg.message}</div>
+                      <div className="message-content">{msg.text}</div>
                       <div className="message-time">
                         {new Date(msg.timestamp).toLocaleTimeString('ru-RU', {
                           hour: '2-digit',
                           minute: '2-digit'
                         })}
                       </div>
-                      {msg.senderId === userId && (
+                      {msg.senderId === user.userId && (
                         <div className="message-status">
                           {msg.read ? '✓✓' : '✓'}
                         </div>
                       )}
-                      {msg.senderId === userId && (
+                      {msg.senderid === user.userId && (
                         <div className="message-actions">
                           <button 
                             className="message-action-btn edit-btn"
-                            onClick={() => startEditing(msg.id, msg.message)}
+                            // onClick={() => startEditing(msg.id, msg.message)}
                             title="Редактировать"
                           >
                             ✏️
                           </button>
                           <button 
                             className="message-action-btn delete-btn"
-                            onClick={() => click(!isClick, msg.id)}
+                            // onClick={() => click(!isClick, msg.id)}
                             title="Удалить"
                           >
                             🗑️
@@ -432,9 +365,9 @@ function Chat({ userId, user2Id, username , img}) {
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    if (inputText.trim()) {
-                      sendMessage();
-                    }
+                    // if (inputText.trim()) {
+                    //   sendMessage();
+                    // }
                   }
                 }}
               />
@@ -469,9 +402,9 @@ function Chat({ userId, user2Id, username , img}) {
                   onKeyPress={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      if (editingText.trim()) {
-                        editMessage(editingMessageId, editingText);
-                      }
+                      // if (editingText.trim()) {
+                      //   editMessage(editingMessageId, editingText);
+                      // }
                     }
                   }}
                 />
@@ -479,12 +412,12 @@ function Chat({ userId, user2Id, username , img}) {
               <div className="edit-panel-actions">
                 <button 
                   className="save-btn" 
-                  onClick={() => editMessage(editingMessageId, editingText)}
+                  // onClick={() => editMessage(editingMessageId, editingText)}
                   disabled={!editingText.trim()}
                 >
                   💾 Сохранить
                 </button>
-                <button className="cancel-btn" onClick={cancelEditing}>
+                <button className="cancel-btn" >
                   ❌ Отмена
                 </button>
               </div>
@@ -492,11 +425,14 @@ function Chat({ userId, user2Id, username , img}) {
           ) : (
             // Панель удаления
             <>
-              <button className="delete-btn" onClick={() => deleteMessage(deleteId)}>
+              <button className="delete-btn"
+              //  onClick={() => deleteMessage(deleteId)}
+               >
                 <span className="delete-icon">🗑️</span>
                 Удалить сообщение
               </button>
-              <button className="cancel-btn" onClick={() => setIsClick(true)}>
+              <button className="cancel-btn" 
+              onClick={() => setIsClick(true)}>
                 Отмена
               </button>
             </>
@@ -511,9 +447,9 @@ function Chat({ userId, user2Id, username , img}) {
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  if (inputText.trim()) {
-                    sendMessage();
-                  }
+                  // if (inputText.trim()) {
+                  //   sendMessage();
+                  // }
                 }
               }}
             />
@@ -523,7 +459,7 @@ function Chat({ userId, user2Id, username , img}) {
           </div>
           <button
             className="send-btn"
-            onClick={sendMessage}
+            // onClick={sendMessage}
             disabled={!inputText.trim()}
             title="Отправить"
           >
@@ -563,11 +499,11 @@ function Chat({ userId, user2Id, username , img}) {
 
               <div className="user-popup-actions">
                 {isContact ? (
-                  <button className="user-popup-button remove-contact" onClick={removeFromContacts}>
+                  <button className="user-popup-button add-contact" onClick={removeFromContacts}>
                     🗑️ Удалить из контактов
                   </button>
                 ) : (
-                  <button className="user-popup-button add-contact" onClick={addToContacts}>
+                  <button className="user-popup-button remove-contact " onClick={addToContacts}>
                     👥 Добавить в контакты
                   </button>
                 )}

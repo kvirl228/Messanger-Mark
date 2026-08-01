@@ -5,6 +5,6 @@ CREATE TABLE IF NOT EXISTS app_schema.messages(
     c_senderid BIGINT NOT NULL,
     c_chatid BIGINT NOT NULL,
     c_text VARCHAR(400) NOT NULL,
-    c_sendtime TIMESTAMP,
+--     c_sendtime TIMESTAMP,
     c_messagestatus BOOLEAN NOT NULL
 )

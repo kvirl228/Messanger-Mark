@@ -2,8 +2,8 @@ spring:
   mail:
       host: smtp.yandex.ru
       port: 465
-      username: tg@yandex.ru
-      password: tg
+      username: markmessanger@yandex.ru
+      password: zpmqfaumfymfwcpx
       properties:
         mail:
           smtp:
@@ -11,7 +11,7 @@ spring:
             ssl:
               enable: true
   datasource:
-    url: jdbc:postgresql://localhost:5432/UsersAuth
+    url: jdbc:postgresql://localhost:5432/UserAuth
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver

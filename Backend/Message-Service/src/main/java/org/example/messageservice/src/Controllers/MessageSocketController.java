@@ -8,6 +8,9 @@ import org.example.messageservice.src.Services.Impl.MessageServiceImpl;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+
+import java.security.Principal;
 
 @Controller
 @RequiredArgsConstructor
@@ -15,28 +18,27 @@ public class MessageSocketController {
 
     private final MessageServiceImpl messageService;
 
-    @MessageMapping("/chat/start")
-    public void startPrivateChat(StartPrivateChatDTO dto,
-                                 Authentication authentication) {
+    @MessageMapping("/chat.send")
+    public void sendMessage(SendMessageDTO dto, Principal principal) {
+        JwtUser jwtUser = (JwtUser) ((Authentication) principal).getPrincipal();
+        Long senderId = Long.valueOf(jwtUser.getId());
+        String jwt = ((Authentication) principal)
+                .getCredentials()
+                .toString();
 
-        JwtUser jwtUser = (JwtUser) authentication.getPrincipal();
-
-        messageService.startPrivateChat(
-                dto,
-                Long.valueOf(jwtUser.getId())
-        );
+        messageService.sendMessage(dto, senderId, jwt);
     }
 
-    @MessageMapping("/chat/send")
-    public void sendMessage(SendMessageDTO dto,
-                            Authentication authentication) {
-
-        JwtUser jwtUser = (JwtUser) authentication.getPrincipal();
-
-        messageService.sendMessage(
-                dto,
-                Long.valueOf(jwtUser.getId())
-        );
+    @MessageMapping("/chat.start")
+    public void startPrivateChat(StartPrivateChatDTO dto, Principal principal) {
+        JwtUser jwtUser = (JwtUser) ((Authentication) principal).getPrincipal();
+        Long senderId = Long.valueOf(jwtUser.getId());
+        String jwt = ((Authentication) principal)
+                .getCredentials()
+                .toString();
+        messageService.startPrivateChat(dto, senderId, jwt);
     }
+
+
 
 }

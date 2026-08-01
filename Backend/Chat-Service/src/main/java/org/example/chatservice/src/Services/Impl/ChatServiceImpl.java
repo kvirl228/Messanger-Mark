@@ -16,8 +16,6 @@ public class ChatServiceImpl implements ChatServiceIntr {
 
     private ChatRepository chatRepository;
 
-    private ChatMembersServiceImpl chatMembersServiceImpl;
-
     @Override
     public Optional<Chat> findChatByChatid(Long chatid) {
         return chatRepository.findById(chatid);
@@ -34,66 +32,17 @@ public class ChatServiceImpl implements ChatServiceIntr {
     }
 
     @Override
-    public Chat savePrivateChat(Chat chat, Long ownerId, Long userId) {
-
-        Chat chat1 = chatRepository.save(chat);
-
-        ChatMembers  chatMembers = new ChatMembers();
-        chatMembers.setChatid(chat1.getId());
-        chatMembers.setUserid(userId);
-        chatMembers.setRole("USER");
-
-        ChatMembers chatMembers1 = new ChatMembers();
-        chatMembers1.setChatid(chat1.getId());
-        chatMembers1.setUserid(ownerId);
-        chatMembers1.setRole("USER");
-
-        List<ChatMembers> chatMembersList = chatMembersServiceImpl.findChatMembersByUserid(ownerId);
-        List<ChatMembers> chatMembersList1 = chatMembersServiceImpl.findChatMembersByUserid(userId);
-
-        boolean isChat = true;
-
-        for (ChatMembers c : chatMembersList) {
-            for (ChatMembers c1 : chatMembersList1) {
-                if (c.getChatid().equals(c1.getChatid())) {
-                    isChat = false;
-                }
-            }
-        }
-
-        if (isChat) {
-            chatMembersServiceImpl.save(chatMembers);
-            chatMembersServiceImpl.save(chatMembers1);
-        }
-        else{
-            chatRepository.deleteById(chat1.getId());
-        }
-
-
-        return chat1;
+    public Long savePrivateChat(Chat chat) {
+        return chatRepository.save(chat).getId();
     }
 
     @Override
-    public void SaveGroupChat(Chat chat, Long ownerId, List<Long> usersId) {
-        ChatMembers  chatMembers = new ChatMembers();
-        chatMembers.setChatid(chat.getId());
-        chatMembers.setUserid(ownerId);
-        chatMembers.setRole("OWNER");
-        chatMembersServiceImpl.save(chatMembers);
-
-        for (Long userId : usersId) {
-            ChatMembers  chatMembers1 = new ChatMembers();
-            chatMembers1.setChatid(chat.getId());
-            chatMembers1.setUserid(userId);
-            chatMembers1.setRole("USER");
-            chatMembersServiceImpl.save(chatMembers1);
-        }
-        chatRepository.save(chat);
+    public Long SaveGroupChat(Chat chat) {
+        return chatRepository.save(chat).getId();
     }
 
     @Override
     public void deleteChatByChatid(Long chatid) {
-        chatMembersServiceImpl.deleteChatMembersByChatid(chatid);
         chatRepository.deleteById(chatid);
     }
 

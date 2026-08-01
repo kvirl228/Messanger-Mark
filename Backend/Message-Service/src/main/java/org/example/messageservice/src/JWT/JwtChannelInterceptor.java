@@ -21,7 +21,6 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
-
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
@@ -31,17 +30,17 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
 
                 String token = authHeader.substring(7);
-
                 if (jwtCore.validateToken(token)) {
-
                     Claims claims = jwtCore.getAllClaimsFromToken(token);
 
-                    Long userId = claims.get("userId", Long.class);
+                    Long userId = Long.valueOf(claims.get("userId", String.class));
 
                     JwtUser jwtUser = new JwtUser(String.valueOf(userId));
 
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(jwtUser, token, Collections.emptyList());
-
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                    jwtUser,
+                                    token,
+                                    Collections.emptyList());
                     accessor.setUser(authentication);
                 }
             }

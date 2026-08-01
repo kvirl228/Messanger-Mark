@@ -30,8 +30,8 @@ public class Message {
     @Column(name = "c_text")
     String text;
 
-    @Column(name = "c_sendtime")
-    Timestamp sendtime;
+//    @Column(name = "c_sendtime")
+//    Timestamp sendtime;
 
     @Column(name = "c_messagestatus")
     boolean messagestatus;

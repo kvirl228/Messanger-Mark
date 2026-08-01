@@ -44,13 +44,11 @@ public class ChatMembersServiceImpl implements ChatMembersServiceIntr {
     }
 
     @Override
-    public void save(ChatMembers chatMembers) {
-//        if (!chatMembersRepository.findChatMembersByUserid(chatMembers.getUserid()).isEmpty()) {
-//            if (!chatMembersRepository.findChatMembersByChatid(chatMembers.getChatid()).isEmpty()) {
-//                return;
-//            }
-//        }
-
+    public void save(Long chatId, String role, Long userId) {
+        ChatMembers chatMembers = new ChatMembers();
+        chatMembers.setChatid(chatId);
+        chatMembers.setRole(role);
+        chatMembers.setUserid(userId);
         chatMembersRepository.save(chatMembers);
     }
 
@@ -70,10 +68,23 @@ public class ChatMembersServiceImpl implements ChatMembersServiceIntr {
         }
 
         if (chatId == null) {
+            System.out.println("Чат не найден. Создаём новый...");
             Chat  chat = new Chat();
             chat.setType("PRIVATE");
-            Chat chat1 = chatServiceImpl.savePrivateChat(chat, userid, senderId);
-            return chat1.getId();
+            Long id = chatServiceImpl.savePrivateChat(chat);
+            System.out.println(id);
+            ChatMembers chatMembers = new ChatMembers();
+            chatMembers.setUserid(userid);
+            chatMembers.setRole("USER");
+            chatMembers.setChatid(id);
+
+            ChatMembers chatMembers2 = new ChatMembers();
+            chatMembers2.setUserid(senderId);
+            chatMembers2.setRole("USER");
+            chatMembers2.setChatid(id);
+            chatMembersRepository.save(chatMembers);
+            chatMembersRepository.save(chatMembers2);
+            return id;
         }
         return chatId;
     }

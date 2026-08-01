@@ -1,16 +1,16 @@
-package org.example.authservice.src.Dto;
-
+package org.example.userservice.src.DTO;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserRequestSignUp {
+public class UserInfoDTO {
+    Long userId;
+    List<Long> contacts;
     String username;
-    String bio;
-    String password;
-    String email;
+
 }

@@ -9,4 +9,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UserCreateDto {
     String username;
+    String bio;
 }

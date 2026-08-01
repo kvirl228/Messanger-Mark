@@ -4,18 +4,24 @@ import { useNavigate } from "react-router-dom"
 // import { auto } from '@cloudinary/url-gen/actions/resize';
 // import { autoGravity } from '@cloudinary/url-gen/qualifiers/gravity';
 // import { AdvancedImage } from '@cloudinary/react';
-
+import { useUser } from "../context/UserContext";
+import WebSocketService from "../../Service/WebSocketService";
 import './Forms.css'
 import { auth_service, user_service } from "../../properties"
 
 function Settings(props) {
 
-    const [name, setName] = useState('')
+    const { user, setUser } = useUser();
+
+    const [name, setName] = useState(user.username)
+    const [userid, setuserId] = useState(user.userId)
+
     const [password, setPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
+
     const [url, setUrl] = useState('');
-    const [userid, setuserId] = useState(-1)
+    
     const [userChats, setUserChats] = useState([])
     const [isLoading, setIsLoading] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
@@ -24,9 +30,13 @@ function Settings(props) {
     const [currentUser, setCurrentUser] = useState(null)
     const [image, setImage] = useState(null);
 
+    const [howCanWrite, setHowCanWrite] = useState("ALL")
+    const [whoCanSee, setWhoCanSee] = useState("ALL")
+    const [whoCanAdd, setWhoCanAdd] = useState("ALL")
 
 
-    const [user, setUser] = useState([])
+
+    
     const navigate = useNavigate()
 
     const handleChangeName = (event) => {
@@ -44,6 +54,19 @@ function Settings(props) {
     const handleChangeConfirmPassword = (event) => {
         setConfirmPassword(event.target.value)
     }
+
+    const handleChangeHowCanWrite = (event) => {
+        setHowCanWrite(event.target.value)
+    }
+
+    const handleChangeWhoCanSee = (event) => {
+        setWhoCanSee(event.target.value)
+    }
+
+    const handleChangeWhoCanAdd = (event) => {
+        setWhoCanAdd(event.target.value)
+    }
+
 
     // const cld = new Cloudinary({ cloud: { cloudName: 'djrfj2vjf' } });
 
@@ -139,57 +162,6 @@ function Settings(props) {
         }
     }
 
-    const getUserId = async () => {
-        try {
-            const response = await fetch(`${user_service}/api/users/userid/${localStorage.getItem("token")}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem("token")}`,
-                    'Content-Type': 'application/json'
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setuserId(data)
-                return data
-            } else if (response.status === 401) {
-                if (await refresh()) {
-                    return await getUserId()
-                }
-            }
-            return null
-        } catch (error) {
-            console.error('Ошибка:', error);
-            return null
-        }
-    }
-
-    const getCurrentUser = async (id) => {
-        try {
-            const response = await fetch(`${user_service}/api/users/id/${id}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem("token")}`,
-                    'Content-Type': 'application/json'
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setCurrentUser(data);
-                setName(data.username || '');
-                console.log(data)
-            } else if (response.status === 401) {
-                if (await refresh()) {
-                    await getCurrentUser();
-                }
-            }
-        } catch (error) {
-            console.error('Ошибка при получении данных пользователя:', error);
-        }
-    }
-
     async function changeUsername() {
         if (!name.trim()) {
             alert('Пожалуйста, введите новое имя пользователя');
@@ -215,7 +187,8 @@ function Settings(props) {
             if (response.ok) {
                 await refresh()
                 alert("Имя пользователя успешно изменено! 🎉")
-                await getCurrentUser();
+                user.username = name
+                setUser(user)
             }
             else {
                 alert("Ошибка при изменении имени пользователя")
@@ -299,15 +272,43 @@ function Settings(props) {
                 
         });
         localStorage.clear()
+        WebSocketService.disconnect();
+        alert("Вы успешно вышли из системы! 👋")
         navigate('/')
     }
-    useEffect(() => {
-        const init = async () => {
-            const id = await getUserId()
-            await getCurrentUser(id)
+
+    async function changeUserSettings() {
+        try {
+            const response = await fetch(`${user_service}/api/users/change/settings/${userid}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem("token")}`
+                },
+                body: JSON.stringify({
+                    issend: howCanWrite,
+                    isadd: whoCanAdd,
+                    isview: whoCanSee
+                }),
+            });
+            if (response.ok) {
+                alert("Настройки успешно изменены! 🎉")
+            }
+            else {
+                alert("Ошибка при изменении настроек пользователя")
+            }
+        } catch (error) {
+            console.error('Ошибка при изменении настроек пользователя:', error);
         }
-        init()
-    }, [])
+    }
+
+    // useEffect(() => {
+    //     const init = async () => {
+    //         const id = await getUserId()
+    //         await getCurrentUser(id)
+    //     }
+    //     init()
+    // }, [])
 
     function toChats() {
         navigate('/chats')
@@ -510,6 +511,42 @@ function Settings(props) {
                         </div>
                     </div>
 
+                    <div>
+                        <label className="settings-label">
+                            <span className="label-icon">📩</span>
+                            Кто может писать вам сообщения: 
+                        </label>
+                        <select className="settings-select" value={howCanWrite} onChange={handleChangeHowCanWrite}>
+                            <option value="ALL">Все</option>
+                            <option value="CONTACTS">Контакты</option>
+                            <option value="NONE">Никто</option>
+                        </select>
+
+                        <label className="settings-label">
+                            <span className="label-icon">🔒</span>
+                            Ваш профиль виден:
+                        </label>
+                        <select className="settings-select" value={whoCanSee} onChange={handleChangeWhoCanSee}>
+                            <option value="ALL">Всем</option>
+                            <option value="CONTACTS">Контактам</option>
+                            <option value="NONE">Никому</option>
+                        </select>
+
+                        <label className="settings-label">
+                            <span className="label-icon">➕</span>
+                            Кто может добавлять вас в группы:
+                        </label>
+                        <select className="settings-select" value={whoCanAdd} onChange={handleChangeWhoCanAdd}>
+                            <option value="ALL">Все</option>
+                            <option value="CONTACTS">Контакты</option>
+                            <option value="NONE">Никто</option>
+                        </select>
+
+                        <button className="settings-btn-primary" onClick={changeUserSettings}>
+                            Сохранить настройки
+                        </button>
+                    </div>
+
                     {/* Информационная панель */}
                     <div className="settings-info-panel">
                         <div className="info-item">
@@ -526,11 +563,7 @@ function Settings(props) {
                                 <p>После изменения пароля вы будете автоматически выйдены из системы</p>
                             </div>
                         </div>
-                        <button
-                                        type="button"
-                                        className="password-toggle-btn"
-                                        onClick={() => exit()}
-                                    >Выход</button>
+                        <button type="button" className="password-toggle-btn"onClick={() => exit()}>Выход</button>
                     </div>
                 </div>
             </div>

@@ -8,6 +8,8 @@ function Registration(){
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
+    const [bio, setBio] = useState('')
+
     const [code, setCode] = useState('')
     const [isVerify, setIsVerify] = useState(false)
 
@@ -15,6 +17,10 @@ function Registration(){
 
     const handleChangeName = (event) => {
         setName(event.target.value)
+    }
+
+    const handleChangeBio = (event) => {
+      setBio(event.target.value)
     }
 
     const handleChangeEmail = (event) => {
@@ -43,6 +49,7 @@ function Registration(){
           },
           body: JSON.stringify({
               username:name,
+              bio: bio,
               email:email,
               password:password,
           }),
@@ -50,7 +57,6 @@ function Registration(){
         });
 
         if (response.ok) {
-          // navigate('/login')
           setIsVerify(true)
         } else {
           alert('Ошибка при отправке данных');
@@ -111,6 +117,13 @@ function Registration(){
       }
     }
 
+    // useEffect(() => {
+    //   const token = localStorage.getItem("token");
+    //   if (token !== null) {
+    //     navigate('/chats');
+    //   }
+    // }, [navigate]);
+
     return(
       <>
       {!isVerify ? (
@@ -122,6 +135,10 @@ function Registration(){
                     <input className="form_input" value={name} onChange={handleChangeName}/>
                 </div>
                 <div className="form_block">
+                    <label className="form_label">Описание</label>
+                    <textarea className="form_input" value={bio} type="tex" onChange={handleChangeBio}/>
+                </div>
+                <div className="form_block">
                     <label className="form_label">Пароль</label>
                     <input className="form_input" value={password} onChange={handleChangePassword}/>
                 </div> 
@@ -129,6 +146,7 @@ function Registration(){
                     <label className="form_label">Почта</label>
                     <input className="form_input" value={email} type="email" onChange={handleChangeEmail}/>
                 </div>
+
                 
                 <button className="form_btn" type='submit'>Создать</button>
                 <div className="little_form_text"><NavLink to = "/login">Войти</NavLink></div>

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import './Forms.css'
+import { user_service, auth_service } from "../../properties"
+import { useUser } from "../context/UserContext"
 
 function Channel(props){
+
+
+    const { user, setUser } = useUser();
 
     const [channelName, setChannelName] = useState('')
     const [channelDescription, setChannelDescription] = useState('')
     const [isLoading, setIsLoading] = useState(false)
-    const [user, setUser] = useState([])
-    const [userid, setuserId] = useState(-1)
     const [contacts, setContacts] = useState([])
     const [selectedContacts, setSelectedContacts] = useState([])
     const [searchQuery, setSearchQuery] = useState('')
@@ -38,7 +41,7 @@ function Channel(props){
 
     async function refresh(){
         try {
-        const response = await fetch("http://localhost:8080/auth/refresh", {
+        const response = await fetch(`${auth_service}/auth/refresh`, {
           method: "POST",
           credentials: "include", 
           headers: {
@@ -57,9 +60,9 @@ function Channel(props){
       }
     }
 
-    const getUserId = async () => {
+    const fetchContacts = async () => {
         try {
-            const response = await fetch(`http://localhost:8080/api/users/id/${localStorage.getItem("token")}`, {
+            const response = await fetch(`${user_service}/api/users/contacts/names/${localStorage.getItem("token")}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem("token")}`,
@@ -69,33 +72,7 @@ function Channel(props){
             
             if (response.ok) {
                 const data = await response.json();
-                setuserId(data)
-                return data
-            } else if (response.status === 401) {
-                if (await refresh()) {
-                    return await getUserId()
-                }
-            }
-            return null
-        } catch (error) {
-            console.error('Ошибка:', error);
-            return null
-        }
-    }
-
-    const fetchContacts = async (ids) => {
-        try {
-            const response = await fetch(`http://localhost:8080/api/users/contacts/findAll/${ids}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem("token")}`,
-                    'Content-Type': 'application/json'
-                },
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                setContacts(data);
+                setContacts(Array.isArray(data) ? data : [data]);
             } else if (response.status === 401) {
                 if (await refresh()) {
                     await fetchContacts();
@@ -123,11 +100,9 @@ function Channel(props){
             },
             body: JSON.stringify({
                 channelName: channelName,
-                ownerId: userid,
                 usersToAdd: selectedContacts
             }),
-        }
-        );
+        });
         if(response.ok){
             await refresh()
             alert("Канал успешно создан! 🎉")
@@ -145,11 +120,7 @@ function Channel(props){
     }
 
     useEffect(() => {
-        const init = async () => {
-            const id = await getUserId()
-            await fetchContacts(id)
-        }
-        init()
+        fetchContacts();
     }, [])
 
     function toChats(){
@@ -225,9 +196,9 @@ function Channel(props){
                             {filteredContacts.length > 0 ? (
                                 filteredContacts.map(contact => (
                                     <div 
-                                        key={contact.id} 
-                                        className={`contact-item ${selectedContacts.includes(contact.id) ? 'selected' : ''}`}
-                                        onClick={() => toggleContactSelection(contact.id)}
+                                        key={contact.contactId} 
+                                        className={`contact-item ${selectedContacts.includes(contact.contactId) ? 'selected' : ''}`}
+                                        onClick={() => toggleContactSelection(contact.contactId)}
                                     >
                                         <div className="contact-avatar">
                                             {contact.avatar ? (

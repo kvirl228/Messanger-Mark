@@ -10,9 +10,12 @@ public class JwtCore {
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parser().setSigningKey(secret).parseClaimsJws(token);
+            Jwts.parser()
+                    .setSigningKey(secret)
+                    .parseClaimsJws(token);
             return true;
         } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
