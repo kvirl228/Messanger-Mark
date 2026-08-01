@@ -49,8 +49,10 @@ function Chats() {
         }else {
             let isContact = false
             if (user.contacts && user.contacts.length > 0) {
+                console.log('Checking if user2Id is in contacts:', user2Id);
                 for (let i = 0; i < user.contacts.length; i++) {
-                    if (user.contacts[i] === user2Id) {       
+                    console.log('Checking contact:', user.contacts[i]);
+                    if (user.contacts[i] == user2Id) {       
                         isContact = true
                         break
                     }
@@ -205,7 +207,7 @@ function Chats() {
     useEffect(() => {
         const chatListener = (chat) => {
 
-    console.log("ChatList event:", chat);
+        console.log("ChatList event:", chat);
 
 
         const newChat = {

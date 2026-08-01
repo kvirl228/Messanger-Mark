@@ -59,6 +59,12 @@ class WebSocketService {
 
             }
         );
+        this.client.subscribe(
+            "/user/queue/chats",
+            (chat) => {
+                const body = JSON.parse(chat.body);
+                this.chatListeners.forEach(listener => listener(body));
+        });
         console.log("Подписка создана");
     }
 

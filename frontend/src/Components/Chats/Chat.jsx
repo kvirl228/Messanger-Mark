@@ -155,6 +155,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                 if (userResponse.ok) {
                     const user = await userResponse.json();
                     setUser(user);
+                    console.log("User info updated after adding contact:", user);
                 }
             } catch (error) {
                 console.error('Ошибка при получении информации о пользователе:', error);
@@ -243,7 +244,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
         return;
       }
       if (message.type === "MESSAGE") {
-        if (message.chatId !== chatId) {
+        if (message.chatId !== chatId && chatId !== null) {
           return;
         }
         setMessages(prev => [...prev, message]);

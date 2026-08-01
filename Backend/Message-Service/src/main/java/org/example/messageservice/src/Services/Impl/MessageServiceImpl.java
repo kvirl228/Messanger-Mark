@@ -51,7 +51,7 @@ public class MessageServiceImpl implements MessageServiceIntr {
     public void startPrivateChat(StartPrivateChatDTO dto, Long senderId, String jwt) {
         Long chatId = chatServiceClient.getOrCreatePrivateChat(senderId, dto.getRecipientId(), jwt);
         String username = userServiceClient.getUsername(senderId, jwt);
-        ChatRequestDTO chatRequestDTO = ChatRequestDTO.builder()
+        ChatRequestDTO chatRequestDTO1 = ChatRequestDTO.builder()
                 .chatId(chatId)
                 .lastMessage(dto.getText())
                 .userId(senderId)
@@ -63,7 +63,7 @@ public class MessageServiceImpl implements MessageServiceIntr {
         messagingTemplate.convertAndSendToUser(
                 dto.getRecipientId().toString(),
                 "/queue/chats",
-                chatRequestDTO
+                chatRequestDTO1
         );
 
         send(chatId, senderId, dto.getText(), jwt);
