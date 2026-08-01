@@ -16,9 +16,11 @@ public class MessageResponseDTO {
 
     private Long chatId;
 
-    private Long senderId;
+    private Long senderid;
 
     private String text;
 
     private Timestamp sendTime;
+
+    private String type;
 }

@@ -1,6 +1,7 @@
 package org.example.chatservice.src.Controllers;
 
 import lombok.AllArgsConstructor;
+import org.example.chatservice.src.Services.Impl.MessageServiceClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.example.chatservice.src.DTO.ChatCreateDTO;
@@ -25,6 +26,7 @@ public class ChatController {
     private ChatServiceImpl chatServiceImpl;
     private ChatMembersServiceImpl chatMembersServiceImpl;
     private UserServiceClient userServiceClient;
+    private final MessageServiceClient messageServiceClient;
 
     @PostMapping("/private/create")
     public ResponseEntity<?> createChat(@RequestBody ChatCreateDTO chatCreateDTO) {
@@ -63,7 +65,7 @@ public class ChatController {
     public ResponseEntity<List<ChatRequestDTO>> findAllChats(@PathVariable String id, @RequestHeader("Authorization") String jwt) {
         try {
             List<ChatMembers> chatMembers = chatMembersServiceImpl.findChatMembersByUserid(Long.valueOf(id));
-
+            System.out.println("gogog");
             if  (chatMembers.isEmpty()){
                 return ResponseEntity.notFound().build();
             }
@@ -99,7 +101,6 @@ public class ChatController {
                     }
                 }
             }
-
 //            List<ChatRequestDTO> chats = new ArrayList<>();
             for (ChatMembers chatMembers1 : privateListMembers) {
                 ChatRequestDTO chatRequestDTO = new ChatRequestDTO();
@@ -109,6 +110,7 @@ public class ChatController {
                         chatMembers1.getUserid(),
                         jwt
                 );
+
                 chatRequestDTO.setTitle(username);
                 chatRequestDTO.setType("PRIVATE");
                 chats.add(chatRequestDTO);
@@ -155,6 +157,14 @@ public class ChatController {
     public ResponseEntity<Long> chatBetweenTwoUsers(@PathVariable Long userId, @PathVariable Long user2Id){
         Long chatId = chatMembersServiceImpl.findChatBetweenUsers(userId, user2Id);
         return ResponseEntity.ok().body(chatId);
+    }
+
+    @DeleteMapping("/delete/{chatId}")
+    public ResponseEntity<?> deleteChatById(@PathVariable Long chatId, @RequestHeader("Authorization") String jwt){
+        messageServiceClient.deleteMessages(chatId, jwt);
+        chatMembersServiceImpl.deleteChatMembersByChatid(chatId);
+        chatServiceImpl.deleteChatByChatid(chatId);
+        return ResponseEntity.ok().build();
     }
 
 

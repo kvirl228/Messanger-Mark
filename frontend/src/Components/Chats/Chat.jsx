@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { auth_service, user_service, chat_service, message_service } from "../../properties"
 import './Chat.css';
 
@@ -19,6 +19,17 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
   const [isContact, setIsContact] = useState(contact);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState('');
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const startEditing = (messageId, currentText) => {
+    setEditingMessageId(messageId);
+    setEditingText(currentText);
+    setIsClick(true); // Закрываем панель удаления при редактировании
+  }
 
   const refreshToken = async () => {
     try {
@@ -42,17 +53,13 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
   }
     
   const sendMessage = () => {
-
     if (inputText.trim() === "") return;
-
     // Первый диалог
     if (chatId == null) {
-
         WebSocketService.send("/app/chat.start", {
             recipientId: user2Id,
             text: inputText
         });
-
     }
     // Обычное сообщение
     else {
@@ -61,17 +68,34 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
             chatId: chatId,
             text: inputText
         });
+        scrollToBottom();
 
     }
 
     setInputText("");
 
   };
+
+  const deleteMessage = (messageId) => {
+    WebSocketService.send("/app/chat.delete", {
+        messageId: messageId
+    });
+  }
+
+  const editMessage = (messageId, newText) => {
+    console.log("EDIT MESSAGE:", messageId, newText);
+    WebSocketService.send("/app/chat.edit", {
+        messageId: messageId,
+        newText: newText
+    });
+    setEditingMessageId(null);
+    setEditingText('');
+  }
   
   const getMessages = async () => {
     console.log("GET MESSAGES FOR CHAT ID:", chatId);
     try {
-      const response = await fetch(`${message_service}/all/${chatId}`, {
+      const response = await fetch(`${message_service}/api/messages/all/${chatId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem("token")}`,
@@ -178,7 +202,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
 
   const deleteChat = async () => {
     try {
-      const response = await fetch(`${chat_service}/api/chats/${user.userId}/${user2Id}`, {
+      const response = await fetch(`${chat_service}/api/chats/delete/${chatId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem("token")}`,
@@ -197,33 +221,39 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
     }
   }
 
-//   const sendMessage = () => {
-
-//     if (inputText.trim() === "")
-//         return;
-
-//     WebSocketService.send(
-//         "/app/chat.send",
-//         {
-
-//             chatId: user2Id,
-//             text: inputText
-
-//         }
-//     );
-
-//     setInputText("");
-
-// }
-
   useEffect(() => {
-    console.log(chatId, user2Id, username, bio, img, contact, type);
+    console.log(chatId, user2Id, username, bio, img, contact, type)
     getMessages();
-   const listener = (message) => {
-
-        console.log(message);
-
+    scrollToBottom();
+    const listener = (message) => {
+      console.log("Received message:", message);
+      if (message.type === "DELETE") {
+          setMessages(prev => prev.filter(m => m.id !== message.messageId));
+        return;
+      }
+      if (message.type === "EDIT") {
+        console.log("Editing message:", message.id, message.text);
+        setMessages(prev =>
+            prev.map(m =>
+                m.id === message.id
+                    ? message
+                    : m
+            )
+        );
+        return;
+      }
+      if (message.type === "MESSAGE") {
+        if (message.chatId !== chatId) {
+          return;
+        }
+        setMessages(prev => [...prev, message]);
+      }
+      if(message.type == "PRIVATE"){
+        return;
+      }
     };
+
+      
 
     WebSocketService.addListener(listener);
 
@@ -238,6 +268,9 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
     
   }, [])
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   return (
     <div className="chat-container">
@@ -295,8 +328,8 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                       <div className="message-edit-actions">
                         <button 
                           className="edit-save-btn"
-                          // onClick={() => editMessage(msg.id, editingText)}
-                          disabled={!editingText.trim()}
+                          onClick={() => editMessage(msg.id, editingText)}
+                          // disabled={!editingText.trim()}
                         >
                           💾
                         </button>
@@ -318,22 +351,23 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                           minute: '2-digit'
                         })}
                       </div>
-                      {msg.senderId === user.userId && (
+                      {msg.senderid === user.userId && (
                         <div className="message-status">
-                          {msg.read ? '✓✓' : '✓'}
+                          {msg.userid}
                         </div>
                       )}
                       {msg.senderid === user.userId && (
                         <div className="message-actions">
                           <button 
                             className="message-action-btn edit-btn"
-                            // onClick={() => startEditing(msg.id, msg.message)}
+                            onClick={() => startEditing(msg.id, msg.message)}
                             title="Редактировать"
                           >
                             ✏️
                           </button>
                           <button 
                             className="message-action-btn delete-btn"
+                            onClick={deleteMessage.bind(null, msg.id)}
                             // onClick={() => click(!isClick, msg.id)}
                             title="Удалить"
                           >
@@ -364,8 +398,8 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                 className="chat-input"
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    // if (inputText.trim()) {
+                    // e.preventDefault();
+                    // if (!inputText.trim()) {
                     //   sendMessage();
                     // }
                   }
@@ -378,7 +412,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
             <button
               className="send-btn"
               onClick={sendMessage}
-              disabled={!inputText.trim()}
+              // disabled={!inputText.trim()}
               title="Отправить"
             >
               <span className="send-icon">📤</span>
@@ -403,7 +437,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       // if (editingText.trim()) {
-                      //   editMessage(editingMessageId, editingText);
+                        editMessage(editingMessageId, editingText);
                       // }
                     }
                   }}
@@ -412,8 +446,8 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
               <div className="edit-panel-actions">
                 <button 
                   className="save-btn" 
-                  // onClick={() => editMessage(editingMessageId, editingText)}
-                  disabled={!editingText.trim()}
+                  onClick={() => editMessage(editingMessageId, editingText)}
+                  // disabled={!editingText.trim()}
                 >
                   💾 Сохранить
                 </button>

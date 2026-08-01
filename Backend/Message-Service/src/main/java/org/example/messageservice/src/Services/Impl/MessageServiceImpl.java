@@ -1,9 +1,7 @@
 package org.example.messageservice.src.Services.Impl;
 
 import lombok.RequiredArgsConstructor;
-import org.example.messageservice.src.DTO.MessageResponseDTO;
-import org.example.messageservice.src.DTO.SendMessageDTO;
-import org.example.messageservice.src.DTO.StartPrivateChatDTO;
+import org.example.messageservice.src.DTO.*;
 import org.example.messageservice.src.Entities.Message;
 import org.example.messageservice.src.Repositories.MessageRepository;
 import org.example.messageservice.src.Services.MessageServiceIntr;
@@ -12,7 +10,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.Timestamp;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,9 +26,11 @@ public class MessageServiceImpl implements MessageServiceIntr {
 
     private final SimpMessagingTemplate messagingTemplate;
 
+    private final UserServiceClient userServiceClient;
+
     @Override
     public List<Message> findAllByChatid(Long chatid) {
-        return messageRepository.findAllByChatid(chatid);
+        return messageRepository.findAllByChatidOrderByIdAsc(chatid);
     }
 
     @Override
@@ -47,6 +50,22 @@ public class MessageServiceImpl implements MessageServiceIntr {
 
     public void startPrivateChat(StartPrivateChatDTO dto, Long senderId, String jwt) {
         Long chatId = chatServiceClient.getOrCreatePrivateChat(senderId, dto.getRecipientId(), jwt);
+        String username = userServiceClient.getUsername(senderId, jwt);
+        ChatRequestDTO chatRequestDTO = ChatRequestDTO.builder()
+                .chatId(chatId)
+                .lastMessage(dto.getText())
+                .userId(senderId)
+                .type("PRIVATE")
+                .title(username)
+                .build();
+
+
+        messagingTemplate.convertAndSendToUser(
+                dto.getRecipientId().toString(),
+                "/queue/chats",
+                chatRequestDTO
+        );
+
         send(chatId, senderId, dto.getText(), jwt);
     }
 
@@ -67,20 +86,76 @@ public class MessageServiceImpl implements MessageServiceIntr {
         List<Long> members = chatServiceClient.getMembers(chatId, jwt);
 
         MessageResponseDTO dto = MessageResponseDTO.builder()
+                .type("MESSAGE")
                 .id(savedMessage.getId())
                 .chatId(savedMessage.getChatid())
-                .senderId(savedMessage.getSenderid())
+                .senderid(savedMessage.getSenderid())
                 .text(savedMessage.getText())
 //                .sendTime(savedMessage.getSendtime())
                 .build();
 
         for (Long memberId : members) {
 
+            System.out.println("BEFORE SEND");
+
             messagingTemplate.convertAndSendToUser(
                     memberId.toString(),
                     "/queue/messages",
                     dto
             );
+
+            System.out.println("AFTER SEND");
         }
     }
+
+    public void editMessage(Long messageId, String text, Long senderId, String jwt){
+        Message message = messageRepository.findById(messageId).orElseThrow();
+        if(!message.getSenderid().equals(senderId)){
+            return;
+        }
+        Long chatId = message.getChatid();
+        message.setText(text);
+        messageRepository.save(message);
+//        Map<String, Object> response = new HashMap<>();
+        MessageResponseDTO dto = MessageResponseDTO.builder()
+                .type("EDIT")
+                .id(message.getId())
+                .senderid(message.getSenderid())
+                .chatId(message.getChatid())
+                .text(message.getText())
+                .build();
+//        response.put("type", "EDIT");
+//        response.put("messageId", messageId);
+        List<Long> members = chatServiceClient.getMembers(chatId, jwt);
+        for (Long id : members){
+            messagingTemplate.convertAndSendToUser(
+                    id.toString(),
+                    "/queue/messages",
+                    dto
+            );
+        }
+    }
+
+
+    public void deleteMessage(Long messageId, Long senderId, String jwt){
+        Message message = messageRepository.findById(messageId).orElseThrow();
+        if(!message.getSenderid().equals(senderId)){
+            return;
+        }
+        Long chatId = message.getChatid();
+        messageRepository.deleteById(messageId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("type", "DELETE");
+        response.put("messageId", messageId);
+        List<Long> members = chatServiceClient.getMembers(chatId, jwt);
+        for (Long ids : members){
+            messagingTemplate.convertAndSendToUser(
+                    ids.toString(),
+                    "/queue/messages",
+                    response
+            );
+        }
+    }
+
+
 }

@@ -8,6 +8,7 @@ class WebSocketService {
         this.connected = false;
         this.subscription = null;
         this.listeners = [];
+        this.chatListeners = [];
         this.tokenTimer = null;
     }
 
@@ -41,7 +42,7 @@ class WebSocketService {
             },
             onStompError: (frame) => {
                 console.error("STOMP ERROR");
-                console.error(frame);
+                
             }
         });
         this.client.activate();
@@ -69,11 +70,11 @@ class WebSocketService {
     startTokenTimer(token) {
         const expiresAt = this.getTokenExpiration(token);
         const timeout = expiresAt - Date.now();
-        console.log(
-            "JWT истечёт через:",
-            timeout / 1000,
-            "секунд"
-        );
+        // console.log(
+        //     "JWT истечёт через:",
+        //     timeout / 1000,
+        //     "секунд"
+        // );
         if (timeout <= 0) {
             console.log("JWT уже истёк");
             return;
@@ -115,6 +116,31 @@ class WebSocketService {
 
     removeListener(listener) {
         this.listeners = this.listeners.filter(l => l !== listener);
+    }
+    addMessageListener(listener){
+    this.messageListeners.push(listener);
+    }
+
+
+    removeMessageListener(listener){
+        this.messageListeners =
+            this.messageListeners.filter(
+                l => l !== listener
+            );
+    }
+
+
+
+    addChatListener(listener){
+        this.chatListeners.push(listener);
+    }
+
+
+    removeChatListener(listener){
+        this.chatListeners =
+            this.chatListeners.filter(
+                l => l !== listener
+            );
     }
 
     disconnect() {
@@ -164,11 +190,8 @@ class WebSocketService {
         }
 
         this.client.publish({
-
             destination: destination,
-
             body: JSON.stringify(body)
-
         });
 
     }

@@ -7,6 +7,7 @@ import GroupChat from './GroupChat';
 import ChannelChat from './ChannelChat';
 import { auth_service, chat_service, refreshToken, user_service } from '../../properties';
 import { useUser } from "../context/UserContext";
+import WebSocketService from "../../Service/WebSocketService";
 
 function Chats() {
 
@@ -185,7 +186,47 @@ function Chats() {
     }
 
     useEffect(() => {
-         getAllChatsOfUser()
+            getAllChatsOfUser()
+            function handleKeyDown(event) {
+                if (event.key === 'Escape') {
+                    setChat(<></>)
+                    setSelectedChatId(null)
+                    setIsClick(true)
+                }
+            }
+
+            window.addEventListener('keydown', handleKeyDown);
+
+            return () => {
+                window.removeEventListener('keydown', handleKeyDown);
+            };
+    }, []);
+
+    useEffect(() => {
+        const chatListener = (chat) => {
+
+    console.log("ChatList event:", chat);
+
+
+        const newChat = {
+            title: chat.title,
+            userId: chat.userId,
+            chatId: chat.chatId,
+            type: chat.type,
+            lastMessage: chat.lastMessage,
+        };
+
+
+        setChats(prev => [newChat, ...prev]);
+
+    };
+
+
+    WebSocketService.addChatListener(chatListener);
+
+    return () => {
+        WebSocketService.removeChatListener(chatListener);
+    };
         
     }, [])
 

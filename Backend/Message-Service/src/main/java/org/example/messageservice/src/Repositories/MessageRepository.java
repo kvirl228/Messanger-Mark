@@ -8,6 +8,6 @@ import java.util.List;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message,Long> {
-    List<Message> findAllByChatid(Long chatid);
+    List<Message> findAllByChatidOrderByIdAsc(Long chatid);
     void deleteAllByChatid(Long chatid);
 }
