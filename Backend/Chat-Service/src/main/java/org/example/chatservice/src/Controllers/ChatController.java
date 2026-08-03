@@ -1,13 +1,10 @@
 package org.example.chatservice.src.Controllers;
 
 import lombok.AllArgsConstructor;
-import org.example.chatservice.src.DTO.UserDTO;
+import org.example.chatservice.src.DTO.*;
 import org.example.chatservice.src.Services.Impl.MessageServiceClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.example.chatservice.src.DTO.ChatCreateDTO;
-import org.example.chatservice.src.DTO.ChatRequestDTO;
-import org.example.chatservice.src.DTO.GroupCreateDTO;
 import org.example.chatservice.src.Entities.Chat;
 import org.example.chatservice.src.Entities.ChatMembers;
 import org.example.chatservice.src.Services.Impl.ChatMembersServiceImpl;
@@ -48,6 +45,7 @@ public class ChatController {
 
         Chat chat = new Chat();
         chat.setType("GROUP");
+        chat.setGroupbio(groupCreateDTO.getBio());
         chat.setTitle(groupCreateDTO.getTitle());
 
         if (groupCreateDTO.getMemberIds().isEmpty() || groupCreateDTO.getOwnerId()==null){
@@ -90,6 +88,7 @@ public class ChatController {
                     }
                     c1.setUserId(userIds);
                     c1.setTitle(c.getTitle());
+                    c1.setBio(c.getGroupbio());
                     c1.setType(c.getType());
                     System.out.println(c1);
                     chats.add(c1);
@@ -116,6 +115,7 @@ public class ChatController {
                 );
 
                 chatRequestDTO.setTitle(userDTO.getUsername());
+                chatRequestDTO.setBio(userDTO.getBio());
                 chatRequestDTO.setType("PRIVATE");
                 chats.add(chatRequestDTO);
             }
@@ -155,6 +155,19 @@ public class ChatController {
             }
         }
         return ResponseEntity.ok(ismember);
+    }
+
+    @GetMapping("/owner/{groupId}")
+    public ResponseEntity<?> getOwnerId(@PathVariable Long groupId){
+        List<ChatMembers> chatMembers = chatMembersServiceImpl.findChatMembersByChatid(groupId);
+        ChatLongDTO dto = new ChatLongDTO();
+        for (ChatMembers member : chatMembers) {
+            if (member.getRole().equals("OWNER")) {
+                dto.setOwnerId(member.getUserid());
+                break;
+            }
+        }
+        return ResponseEntity.ok().body(dto);
     }
 
     @GetMapping("/{userId}/between/{user2Id}")

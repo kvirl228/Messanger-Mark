@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { auth_service, chat_service, user_service } from '../../properties';
+import { useEffect, useState, useMemo } from "react";
+import { auth_service,message_service, chat_service, user_service } from '../../properties';
 import './Chat.css';
 import { useUser } from "../context/UserContext";
+import WebSocketService from "../../Service/WebSocketService";
 
-function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
+function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
   const { user, setUser } = useUser();
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -15,13 +16,36 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [url, setUrl] = useState('');
   const [userId, setUserId] = useState(user.userId);
+  const [avatarPreview, setAvatarPreview] = useState(groupAvatar || null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadFeedback, setUploadFeedback] = useState('');
   
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState('');
+  const [creatorId, setCreatorId] = useState(null);
+  
 
   const handleImageChange = (event) => {
-        setImage(event.target.files[0]);
-    };
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImage(file);
+    setAvatarPreview(URL.createObjectURL(file));
+    setUploadFeedback('');
+  };
+
+  function mergeMessagesWithUsers(messages, users) {
+    const usersMap = new Map(
+        users.map(user => [user.id, user])
+    );
+
+    return messages.map(message => ({
+        ...message,
+        username: usersMap.get(message.senderid)?.username ?? "Неизвестный",
+        avatar: usersMap.get(message.senderid)?.avatar ?? null,
+        bio: usersMap.get(message.senderid)?.bio ?? ""
+    }));
+}
 
   const refreshToken = async () => {
     try {
@@ -43,94 +67,31 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
   }
 
   const sendMessage = async () => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/group-messages/send/${groupId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: inputText,
-          senderId: userId,
-        })
+    if (inputText.trim() === "") return;
+    console.log(groupId);
+     WebSocketService.send("/app/chat.send", {
+        chatId: groupId,
+        text: inputText
       });
-
-      if (response.ok) {
-        const message = await response.json()
-        const newMessage = [...messages, message]
-        setMessages(newMessage)
-        console.log(userId)
-      }
-      else {
-        alert("Error")
-      }
-    } catch (error) {
-      console.error('Ошибка:', error);
-    }
-
     setInputText('')
   }
 
   // Функция для редактирования сообщения
-  const editMessage = async (messageId, newText) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/group-messages/${messageId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: newText
-        })
+  const deleteMessage = (messageId) => {
+      WebSocketService.send("/app/chat.delete", {
+          messageId: messageId
       });
-
-      if (response.ok) {
-        const updatedMessage = await response.json();
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
-            msg.id === messageId ? updatedMessage : msg
-          )
-        );
-        setEditingMessageId(null);
-        setEditingText('');
-        setIsClick(true);
-      } else if (response.status === 401) {
-        if (await refreshToken()) {
-          await editMessage(messageId, newText);
-        }
-      } else {
-        alert("Ошибка при редактировании сообщения");
-      }
-    } catch (error) {
-      console.error('Ошибка:', error);
-      alert("Ошибка при редактировании сообщения");
     }
-  };
-  const deleteMessage = async (id) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/group-messages/${id}`, {
-        method: "DELETE",
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json"
-        }
+  
+    const editMessage = (messageId, newText) => {
+      console.log("EDIT MESSAGE:", messageId, newText);
+      WebSocketService.send("/app/chat.edit", {
+          messageId: messageId,
+          newText: newText
       });
-
-      if (response.ok) {
-        setIsClick(true)
-      } else if (response.status === 403) {
-        alert("Вы можете удалять только свои сообщения");
-      } else if (response.status === 401) {
-        if (await refreshToken()) {
-          await deleteMessage(id);
-        }
-      }
-    } catch (error) {
-      console.error('Ошибка:', error);
+      setEditingMessageId(null);
+      setEditingText('');
     }
-  }
   const exitGroup = async (memberId) => {
     try {
       const response = await fetch(`http://localhost:8080/api/groups/${groupId}/members/${memberId}`, {
@@ -182,25 +143,48 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
   }
   const getMembers = async () => {
     try {
-      const response = await fetch(`${user_service}/api/users/all/ids`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ids: usersIds
-        }),
-      });
+        const response = await fetch(`${user_service}/api/users/all/ids`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                ids: usersIds
+            })
+        });
 
-      if (response.ok) {
-        const members = await response.json();
-        setGroupMembers(members);
-      }
+        if (response.ok) {
+            const members = await response.json();
+            setGroupMembers(members);
+            return members;          // ← добавить
+        }
+
+        return [];
     } catch (error) {
-      console.error('Ошибка при загрузке участников:', error);
+        console.error(error);
+        return [];
     }
-  }
+  };
+  const getMessages = async () => {
+    try {
+        const response = await fetch(`${message_service}/api/messages/all/${groupId}`,{
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+              "Content-Type": "application/json"
+          }});
+        if (response.ok) {
+            const data = await response.json();
+            const messages = Array.isArray(data) ? data : [data];
+            return messages;      // ← вернуть
+        }
+        return [];
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+  };
 
   // Функция для начала редактирования
   const startEditing = (messageId, currentText) => {
@@ -216,6 +200,32 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
     setIsClick(true);
   };
 
+  const getCreatorId = async () => {
+    try {
+      const response = await fetch(`${chat_service}/api/chats/owner/${groupId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json"
+        }
+      });
+      if (response.ok) {
+        const groupData = await response.json();
+        setCreatorId(groupData.ownerId)
+         if(groupData.ownerId === userId){
+          setIsAdmin(true);
+        }
+        else{
+          setIsAdmin(false);
+        }
+      } else {
+        console.error("Ошибка при получении данных группы");
+      }
+    } catch (error) {
+      console.error("Ошибка при получении данных группы:", error);
+    }
+  };
+
   
 
   const click = (clicker, id) => {
@@ -226,49 +236,62 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
   
 
   const sendToBackend = async (imageUrl) => {
-        try {
-            const response = await fetch("http://localhost:8080/api/groups/avatar", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    id: userId,
-                    groupId: groupId,
-                    avatar: imageUrl
-                }),
-            });
-            console.log(userId);
-            console.log(imageUrl);
-            alert("Ссылка отправлена на backend!");
-        } catch (err) {
-            console.error("Ошибка отправки:", err);
-        }
-    };
+    try {
+      const response = await fetch("http://localhost:8080/api/groups/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: userId,
+          groupId: groupId,
+          avatar: imageUrl
+        }),
+      });
+
+      if (response.ok) {
+        setUrl(imageUrl);
+        setAvatarPreview(imageUrl);
+        setUploadFeedback("Аватарка успешно обновлена");
+      } else {
+        setUploadFeedback("Не удалось сохранить аватарку");
+      }
+    } catch (err) {
+      console.error("Ошибка отправки:", err);
+      setUploadFeedback("Ошибка при обновлении аватарки");
+    }
+  };
   
   const uploadImage = async () => {
-        if (!image) return;
-        console.log(image)
+    if (!image) {
+      setUploadFeedback("Сначала выберите изображение");
+      return;
+    }
 
-        const data = new FormData();
-        data.append("file", image);
-        data.append("upload_preset", "main_preset"); // your unsigned preset
-        data.append("cloud_name", "djrfj2vjf");
+    setUploadingAvatar(true);
+    setUploadFeedback('');
 
-        try {
-            const res = await fetch(
-                "https://api.cloudinary.com/v1_1/djrfj2vjf/image/upload",
-                {
-                    method: "POST",
-                    body: data,
-                }
-            );
-            const file = await res.json();
-            console.log(file.secure_url);
-            setUrl(file.secure_url); // This is the uploaded image URL
-            sendToBackend(file.secure_url);
-        } catch (err) {
-            console.error("Upload error:", err);
+    const data = new FormData();
+    data.append("file", image);
+    data.append("upload_preset", "main_preset");
+    data.append("cloud_name", "djrfj2vjf");
+
+    try {
+      const res = await fetch(
+        "https://api.cloudinary.com/v1_1/djrfj2vjf/image/upload",
+        {
+          method: "POST",
+          body: data,
         }
-    };
+      );
+      const file = await res.json();
+      setUrl(file.secure_url);
+      await sendToBackend(file.secure_url);
+    } catch (err) {
+      console.error("Upload error:", err);
+      setUploadFeedback("Ошибка загрузки изображения");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   
 
@@ -277,17 +300,54 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
   }
 
   useEffect(() => {
-    getMembers()
-    if(creatorId === userId){
-      setIsAdmin(true);
-    }
-    else{
-      setIsAdmin(false);
-    }
+    getCreatorId()
+    // console.log('GroupChat mounted with props:', { usersIds, groupId, groupName, bio, groupAvatar, creatorId });
+    const loadData = async () => {
+        const members = await getMembers();
+        const messages = await getMessages();
+
+        setGroupMembers(members);
+        setMessages(mergeMessagesWithUsers(messages, members));
+    };
+
+    loadData();
+    
+   
+    const listener = (message) => {
+      // if (message.chatId === groupId) {
+      //   setMessages(prevMessages => [...prevMessages, message]);
+      // }
+      if (message.type === "DELETE") {
+          setMessages(prev => prev.filter(m => m.id !== message.messageId));
+        return;
+      }
+      if (message.type === "EDIT") {
+        console.log("Editing message:", message.id, message.text);
+        setMessages(prev =>
+            prev.map(m =>
+                m.id === message.id
+                    ? message
+                    : m
+            )
+        );
+        return;
+      }
+      if (message.type === "MESSAGE") {
+        if (message.chatId !== groupId && groupId !== null) {
+          return;
+        }
+        setMessages(prev => [...prev, message]);
+      }
+    };
+
+    WebSocketService.addListener(listener);
+    
+    return () => {WebSocketService.removeListener(listener);};
   }, [])
 
   return (
     <div className="chat-container">
+      {/* <button onClick={() => console.log(isAdmin)}>show</button> */}
       <div className="chat-header">
         <div className="chat-header-info" onClick={() => setShowMembersPopup(true)}>
           <div className="chat-user-avatar">
@@ -324,7 +384,7 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
             {messages.map((msg, index) => (
               <div
                 key={`${msg.timestamp}-${index}`}
-                className={`message-wrapper ${msg.senderId === userId ? 'my_message' : 'their_message'}`}
+                className={`message-wrapper ${msg.senderid === userId ? 'my_message' : 'their_message'}`}
               >
                 <div className="message-bubble">
                   {editingMessageId === msg.id ? (
@@ -341,7 +401,7 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
                         <button 
                           className="edit-save-btn"
                           onClick={() => editMessage(msg.id, editingText)}
-                          disabled={!editingText.trim()}
+                          // disabled={!editingText.trim()}
                         >
                           💾
                         </button>
@@ -358,10 +418,10 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
                     <>
                       {msg.senderId !== userId && (
                         <div className="message-sender">
-                          {msg.username  || `Пользователь ${msg.senderId}`}
+                          {msg.username  }
                         </div>
                       )}
-                      <div className="message-content">{msg.message}</div>
+                      <div className="message-content">{msg.text}</div>
                       <div className="message-time">
                         {new Date(msg.timestamp).toLocaleTimeString('ru-RU', {
                           hour: '2-digit',
@@ -373,7 +433,7 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
                           {msg.read ? '✓✓' : '✓'}
                         </div>
                       )}
-                      {msg.senderId === userId && (
+                      {msg.senderId !== userId && (
                         <div className="message-actions">
                           <button 
                             className="message-action-btn edit-btn"
@@ -415,9 +475,10 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    if (inputText.trim()) {
-                      sendMessage();
-                    }
+                    sendMessage()
+                    // if (inputText.trim()) {
+                    //   sendMessage();
+                    // }
                   }
                 }}
               />
@@ -428,7 +489,7 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
             <button
               className="send-btn"
               onClick={sendMessage}
-              disabled={!inputText.trim()}
+              // disabled={!inputText.trim()}
               title="Отправить"
             >
               <span className="send-icon">📤</span>
@@ -449,21 +510,21 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
                   onChange={(e) => setEditingText(e.target.value)}
                   placeholder="Введите новый текст..."
                   className="chat-input"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      if (editingText.trim()) {
-                        editMessage(editingMessageId, editingText);
-                      }
-                    }
-                  }}
+                  // onKeyPress={(e) => {
+                  //   if (e.key === 'Enter' && !e.shiftKey) {
+                  //     e.preventDefault();
+                  //     if (editingText.trim()) {
+                  //       editMessage(editingMessageId, editingText);
+                  //     }
+                  //   }
+                  // }}
                 />
               </div>
               <div className="edit-panel-actions">
                 <button 
                   className="save-btn" 
                   onClick={() => editMessage(editingMessageId, editingText)}
-                  disabled={!editingText.trim()}
+                  // disabled={!editingText.trim()}
                 >
                   💾 Сохранить
                 </button>
@@ -491,14 +552,14 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Введите сообщение..."
               className="chat-input"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (inputText.trim()) {
-                    sendMessage();
-                  }
-                }
-              }}
+              // onKeyPress={(e) => {
+              //   if (e.key === 'Enter' && !e.shiftKey) {
+              //     e.preventDefault();
+              //     if (inputText.trim()) {
+              //       sendMessage();
+              //     }
+              //   }
+              // }}
             />
             <button className="emoji-btn" title="Эмодзи">
               <span className="emoji-icon">😊</span>
@@ -507,7 +568,7 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
           <button
             className="send-btn"
             onClick={sendMessage}
-            disabled={!inputText.trim()}
+            // disabled={!inputText.trim()}
             title="Отправить"
           >
             <span className="send-icon">📤</span>
@@ -517,22 +578,72 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
 
       {/* Выпадающее окно с участниками группы */}
       {showMembersPopup && (
-        <div className="user-popup-overlay" onClick={closeMembersPopup}>
-          <div className="user-popup" onClick={(e) => e.stopPropagation()}>
-            <div className="user-popup-header">
-              <div className="user-popup-avatar">
-                <div className="user-popup-avatar-placeholder">👥</div>
+        <div className="group-user-popup-overlay" onClick={closeMembersPopup}>
+          <div className="group-user-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="group-user-popup-header">
+              <div className="group-user-popup-avatar">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="Group avatar" />
+                ) : (
+                  <div className="group-user-popup-avatar-placeholder">👥</div>
+                )}
               </div>
-              <div className="user-popup-info">
-                <h3 className="user-popup-name">{groupName}</h3>
-                <p className="user-popup-status">Участники группы</p>
+              <div className="group-user-popup-info">
+                <h3 className="group-user-popup-name">{groupName}</h3>
+                <p className="group-user-popup-status">{groupMembers.length} участников • управление группой</p>
               </div>
-              <button className="user-popup-close" onClick={closeMembersPopup}>✕</button>
+              <button className="group-user-popup-close" onClick={closeMembersPopup}>✕</button>
             </div>
 
-            <div className="user-popup-content">
+            <div className="group-user-popup-content">
+              <div className="group-description-card">
+                <div className="group-description-card__title">Описание группы</div>
+                <p className="group-description-card__text">
+                  {bio?.trim() ? bio : 'Описание пока не добавлено'}
+                </p>
+              </div>
+
+              <div className="avatar-upload-card">
+                <div className="avatar-upload-card__header">
+                  <div>
+                    <h4>Обновить аватарку</h4>
+                    <p>Выберите новое фото для группы</p>
+                  </div>
+                  <div className="avatar-upload-preview">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Preview" />
+                    ) : (
+                      <span>👥</span>
+                    )}
+                  </div>
+                </div>
+
+                <label className="avatar-upload-label" htmlFor="group-avatar-input">
+                  <span className="avatar-upload-label__icon">📷</span>
+                  <span>{image ? image.name : 'Выбрать изображение'}</span>
+                </label>
+                <input
+                  id="group-avatar-input"
+                  className="avatar-upload-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+
+                <button
+                  className="avatar-upload-btn"
+                  onClick={uploadImage}
+                  disabled={uploadingAvatar || !image}
+                >
+                  {uploadingAvatar ? 'Загрузка...' : 'Загрузить аватарку'}
+                </button>
+                {uploadFeedback && <p className="upload-feedback">{uploadFeedback}</p>}
+              </div>
+
               <div className="members-list">
-                <h4>Список участников ({groupMembers.length})</h4>
+                <div className="members-list-header">
+                  <h4>Участники ({groupMembers.length})</h4>
+                </div>
                 {groupMembers.map((member) => (
                   <div key={member.id} className="member-item">
                     <div className="member-info">
@@ -540,7 +651,7 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
                         {member.avatar ? (
                           <img src={member.avatar} alt="Avatar" />
                         ) : (
-                          <div className="member-avatar-placeholder">👤</div>
+                          <span className="member-avatar-placeholder">👤</span>
                         )}
                       </div>
                       <div className="member-details">
@@ -548,7 +659,7 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
                         {member.id === userId && <span className="member-you">(Вы)</span>}
                       </div>
                     </div>
-                    {isAdmin && member.id !== userId && (
+                    {isAdmin && member.id == userId && (
                       <button 
                         className="remove-member-btn"
                         onClick={() => removeMember(member.id)}
@@ -557,15 +668,12 @@ function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
                         🗑️
                       </button>
                     )}
-                    
                   </div>
                 ))}
-                <button className="message-action-btn delete-btn" onClick={() => exitGroup(userId)}title="Выйти из группы">Выйти 🗑️</button>
-                <input type="file" onChange={(e) => { e.preventDefault(); handleImageChange(e); }} />
-                            <button
-                                className="settings-btn-primary"
-                                onClick={(e) => { e.preventDefault(); uploadImage(); }}
-                            >Загрузить</button>
+
+                <button className="member-action-btn member-exit-btn" onClick={() => exitGroup(userId)}>
+                  Выйти из группы
+                </button>
               </div>
             </div>
           </div>

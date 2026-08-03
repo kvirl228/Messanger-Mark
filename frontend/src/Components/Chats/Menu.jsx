@@ -41,6 +41,7 @@ function Chats() {
     const toGroupCreate = () => navigate("/group")
 
     const clickChat = (value, chatId, user2Id, bio, name, img, type) => {
+        console.log('Chat clicked:', { value, chatId, user2Id, bio, name, img, type });
         if (!isClick ) {
             console.log('Deselecting chat:', chatId);
             setSelectedChatId(null)
@@ -51,9 +52,10 @@ function Chats() {
                 setSelectedChatId(chatId)
                 setIsClick(!value)
                 setChat(<GroupChat
-                    chatid={chatId}
+                    groupId={chatId}
                     usersIds={user2Id}
                     groupName={name}
+                    bio={bio}
                     img={img}
                     bio={bio}
                     type={type}

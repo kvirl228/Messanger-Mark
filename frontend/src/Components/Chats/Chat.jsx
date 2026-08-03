@@ -403,7 +403,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                           minute: '2-digit'
                         })}
                       </div>
-                      {msg.senderid === user.userId && (
+                      {msg.senderId === user.userid && (
                         <div className="message-status">
                           {msg.userid}
                         </div>

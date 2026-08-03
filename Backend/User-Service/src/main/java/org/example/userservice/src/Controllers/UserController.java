@@ -132,18 +132,11 @@ public class UserController {
     }
 
     @PostMapping("/all/ids")
-    public ResponseEntity<?> getAllUsersByIds(@RequestHeader("Authorization") String authorization,@RequestBody UsersIdsDTO dto){
-        String jwt = authorization.substring(7);
-        Claims claims = jwtCore.getAllClaimsFromToken(jwt);
-        String currentUserId = claims.get("userId").toString();
+    public ResponseEntity<?> getAllUsersByIds(@RequestBody UsersIdsDTO dto){
         List<UserInfoForGroup> users = new ArrayList<>();
         for (Long userId : dto.getIds()){
-            if(String.valueOf(userId).equals(currentUserId)){
-                continue;
-            }else{
                 User user = userService.findUserById(userId).orElseThrow();
                 users.add(UserInfoForGroup.builder().id(user.getId()).username(user.getUsername()).bio(user.getBio()).build());
-            }
         }
         return ResponseEntity.ok().body(users);
     }

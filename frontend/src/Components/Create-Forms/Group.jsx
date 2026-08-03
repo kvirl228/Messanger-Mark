@@ -102,6 +102,7 @@ function Group(props){
                 },
                 body: JSON.stringify({
                     title: groupName,
+                    bio: groupDescription,
                     ownerId: user.userId,
                     memberIds: selectedContacts
                 }),
