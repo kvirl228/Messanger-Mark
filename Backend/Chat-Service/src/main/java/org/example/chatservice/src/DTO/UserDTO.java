@@ -4,21 +4,13 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
-import java.util.List;
-
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ChatRequestDTO {
+public class UserDTO {
 
-    String title;
-    List<Long> userId;
-    Long chatId;
-    String type;
+    String username;
     String bio;
     String issend;
-    String lastMessage;
-    LocalDate lastMessageSend;
 
 }

@@ -22,11 +22,16 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
+            System.out.println("CONNECT");
 
+            String authHeader = accessor.getFirstNativeHeader("Authorization");
+            System.out.println("AUTH = " + authHeader);
+        }
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
 
             String authHeader = accessor.getFirstNativeHeader("Authorization");
-
+            System.out.println(authHeader);
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
 
                 String token = authHeader.substring(7);

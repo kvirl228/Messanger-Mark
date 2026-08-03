@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { user_service, auth_service, chat_service } from "../../properties"
+import { useUser } from "../context/UserContext"
 import './Forms.css'
 
 function Group(props){
 
+    const { user, setUser } = useUser();
+
     const [groupName, setGroupName] = useState('')
     const [groupDescription, setGroupDescription] = useState('')
     const [isLoading, setIsLoading] = useState(false)
-    const [user, setUser] = useState([])
-    const [userid, setuserId] = useState(-1)
+    // const [user, setUser] = useState([])
+    // const [userid, setuserId] = useState(-1)
     const [contacts, setContacts] = useState([])
     const [selectedContacts, setSelectedContacts] = useState([])
     const [searchQuery, setSearchQuery] = useState('')
@@ -38,7 +42,7 @@ function Group(props){
 
     async function refresh(){
         try {
-        const response = await fetch("http://localhost:8080/auth/refresh", {
+        const response = await fetch(`${auth_service}/auth/refresh`, {
           method: "POST",
           credentials: "include", 
           headers: {
@@ -57,54 +61,29 @@ function Group(props){
       }
     }
 
-    const getUserId = async () => {
-        try {
-            const response = await fetch(`http://localhost:8080/api/users/id/${localStorage.getItem("token")}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem("token")}`,
-                    'Content-Type': 'application/json'
-                },
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                setuserId(data)
-                return data
-            } else if (response.status === 401) {
-                if (await refresh()) {
-                    return await getUserId()
+    const fetchContacts = async () => {
+            try {
+                const response = await fetch(`${user_service}/api/users/contacts/names/${localStorage.getItem("token")}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem("token")}`,
+                        'Content-Type': 'application/json'
+                    },
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    setContacts(Array.isArray(data) ? data : [data]);
+                } else if (response.status === 401) {
+                    if (await refresh()) {
+                        await fetchContacts();
+                    }
                 }
+            } catch (error) {
+                console.error('Ошибка при получении контактов:', error);
             }
-            return null
-        } catch (error) {
-            console.error('Ошибка:', error);
-            return null
         }
-    }
-
-    const fetchContacts = async (id) => {
-        try {
-            const response = await fetch(`http://localhost:8080/api/users/contacts/findAll/${id}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem("token")}`,
-                    'Content-Type': 'application/json'
-                },
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                setContacts(data);
-            } else if (response.status === 401) {
-                if (await refresh()) {
-                    await fetchContacts();
-                }
-            }
-        } catch (error) {
-            console.error('Ошибка при получении контактов:', error);
-        }
-    }
+    
 
     async function createGroup () {
         if (!groupName.trim()) {
@@ -113,29 +92,28 @@ function Group(props){
         }
 
         setIsLoading(true);
-        
+        console.log("Создание группы с названием:", selectedContacts, groupName, groupDescription);
         try {
-        const response = await fetch(`http://localhost:8080/api/groups/create`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem("token")}`
-            },
-            body: JSON.stringify({
-                groupName: groupName,
-                creatorId: userid,
-                usersToAdd: selectedContacts
-            }),
-        }
-        );
-        if(response.ok){
-            await refresh()
-            alert("Группа успешно создана! 🎉")
-            navigate('/chats')
-        }
-        else{
-            alert("Ошибка при создании группы")
-        }
+            const response = await fetch(`${chat_service}/api/chats/group/create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem("token")}`
+                },
+                body: JSON.stringify({
+                    title: groupName,
+                    ownerId: user.userId,
+                    memberIds: selectedContacts
+                }),
+            });
+            if(response.ok){
+                await refresh()
+                alert("Группа успешно создана! 🎉")
+                navigate('/chats')
+            }
+            else{
+                alert("Ошибка при создании группы")
+            }
         } catch (error) {
             console.error('Ошибка:', error);
             alert("Ошибка при создании группы")
@@ -145,11 +123,7 @@ function Group(props){
     }
 
     useEffect(() => {
-        const init = async () => {
-            const id = await getUserId()
-            await fetchContacts(id)
-        }
-        init()
+            fetchContacts()
     }, [])
 
     function toChats(){
@@ -209,7 +183,7 @@ function Group(props){
                                     <div 
                                         key={contact.id} 
                                         className={`contact-item ${selectedContacts.includes(contact.id) ? 'selected' : ''}`}
-                                        onClick={() => toggleContactSelection(contact.id)}
+                                        onClick={() => toggleContactSelection(contact.contactId)}
                                     >
                                         <div className="contact-avatar">
                                             {contact.avatar ? (

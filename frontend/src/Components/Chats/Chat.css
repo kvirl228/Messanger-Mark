@@ -1054,3 +1054,35 @@
     padding: 10px 14px;
   }
 }
+
+.chat-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(20,32,51,0.08);
+  background: #f8fbff;
+}
+.chat-search-input {
+  flex: 1;
+  min-height: 40px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(20,32,51,0.12);
+  background: #fff;
+  color: #122134;
+}
+.chat-search-input:focus {
+  outline: none;
+  border-color: rgba(63,123,255,0.4);
+  box-shadow: 0 0 0 4px rgba(63,123,255,0.08);
+}
+.chat-search-close {
+  min-width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64788f;
+  cursor: pointer;
+}

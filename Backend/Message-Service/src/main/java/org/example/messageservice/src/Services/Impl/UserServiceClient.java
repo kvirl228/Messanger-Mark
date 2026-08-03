@@ -1,6 +1,7 @@
 package org.example.messageservice.src.Services.Impl;
 
 import lombok.RequiredArgsConstructor;
+import org.example.messageservice.src.DTO.UserDTO;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -18,12 +19,12 @@ public class UserServiceClient {
 
     private final RestClient restClient;
 
-    public String getUsername(Long userId, String jwt) {
+    public UserDTO getUser(Long userId, String jwt) {
         return restClient.get()
                 .uri("http://localhost:8031/api/users/usernameForId/{id}", userId)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
                 .retrieve()
-                .body(String.class);
+                .body(UserDTO.class);
     }
 
 }

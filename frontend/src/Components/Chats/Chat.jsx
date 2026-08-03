@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { auth_service, user_service, chat_service, message_service } from "../../properties"
 import './Chat.css';
 
@@ -11,6 +11,8 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
 
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
+  const [searchMode, setSearchMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isClick, setIsClick] = useState(true)
   const [chatId, setChatId] = useState(chatid);
   const [deleteId, setDeleteId] = useState(0)
@@ -31,9 +33,14 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
     setIsClick(true); // Закрываем панель удаления при редактировании
   }
 
+  const cancelEditing = () => {
+    setEditingMessageId(null);
+    setEditingText('');
+  }
+
   const refreshToken = async () => {
     try {
-      const response = await fetch("http://localhost:8080/auth/refresh", {
+      const response = await fetch(`${auth_service}/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" }
@@ -54,6 +61,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
     
   const sendMessage = () => {
     if (inputText.trim() === "") return;
+    console.log(WebSocketService.connected);
     // Первый диалог
     if (chatId == null) {
         WebSocketService.send("/app/chat.start", {
@@ -273,6 +281,17 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
     scrollToBottom();
   }, [messages]);
 
+  const filteredMessages = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return messages;
+    return messages.filter(msg => {
+      const text = String(msg.text ?? msg.message ?? msg.body ?? '');
+      return text.toLowerCase().includes(q);
+    });
+  }, [messages, searchQuery]);
+
+  const displayedMessages = searchMode ? filteredMessages : messages;
+
   return (
     <div className="chat-container">
       <div className="chat-header">
@@ -295,7 +314,14 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
           </div>
         </div>
         <div className="chat-header-actions">
-          <button className="chat-action-btn" title="Поиск">
+          <button
+            className="chat-action-btn"
+            title="Поиск"
+            onClick={() => {
+              setSearchMode(prev => !prev);
+              if (searchMode) setSearchQuery('');
+            }}
+          >
             <span className="action-icon">🔍</span>
           </button>
           <button className="chat-action-btn" title="Настройки">
@@ -304,16 +330,41 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
         </div>
       </div>
 
+      {searchMode && (
+        <div className="chat-search-row">
+          <input
+            className="chat-search-input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск по сообщениям..."
+          />
+          <button
+            className="chat-search-close"
+            type="button"
+            onClick={() => {
+              setSearchMode(false);
+              setSearchQuery('');
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <div className="messages-container">
-        {messages.length === 0 ? (
+        {displayedMessages.length === 0 ? (
           <div className="empty-chat">
             <div className="empty-chat-icon">💬</div>
-            <h3>Начните разговор</h3>
-            <p>Отправьте первое сообщение, чтобы начать общение с {username}</p>
+            <h3>{searchMode && searchQuery ? 'Сообщения не найдены' : 'Начните разговор'}</h3>
+            <p>
+              {searchMode && searchQuery
+                ? 'Попробуйте другой запрос'
+                : `Отправьте первое сообщение, чтобы начать общение с ${username}`}
+            </p>
           </div>
         ) : (
           <div className="messages-list">
-            {messages.map((msg, index) => (
+            {displayedMessages.map((msg, index) => (
               <div key={`${msg.timestamp}-${index}`} className={`message-wrapper ${msg.senderid === user.userId ? 'my_message' : 'their_message'}`}>
                 <div className="message-bubble">
                   {editingMessageId === msg.id ? (
@@ -336,7 +387,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                         </button>
                         <button 
                           className="edit-cancel-btn"
-                          // onClick={cancelEditing}
+                          onClick={cancelEditing}
                         >
                           ❌
                         </button>
@@ -361,7 +412,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                         <div className="message-actions">
                           <button 
                             className="message-action-btn edit-btn"
-                            onClick={() => startEditing(msg.id, msg.message)}
+                            onClick={() => startEditing(msg.id, msg.text)}
                             title="Редактировать"
                           >
                             ✏️
@@ -369,7 +420,6 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
                           <button 
                             className="message-action-btn delete-btn"
                             onClick={deleteMessage.bind(null, msg.id)}
-                            // onClick={() => click(!isClick, msg.id)}
                             title="Удалить"
                           >
                             🗑️

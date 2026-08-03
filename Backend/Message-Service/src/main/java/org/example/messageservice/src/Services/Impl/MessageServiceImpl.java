@@ -10,10 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.Timestamp;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -49,22 +46,33 @@ public class MessageServiceImpl implements MessageServiceIntr {
     }
 
     public void startPrivateChat(StartPrivateChatDTO dto, Long senderId, String jwt) {
+        System.out.println("is true");
         Long chatId = chatServiceClient.getOrCreatePrivateChat(senderId, dto.getRecipientId(), jwt);
-        String username = userServiceClient.getUsername(senderId, jwt);
-        ChatRequestDTO chatRequestDTO1 = ChatRequestDTO.builder()
-                .chatId(chatId)
-                .lastMessage(dto.getText())
-                .userId(senderId)
-                .type("PRIVATE")
-                .title(username)
-                .build();
+        UserDTO user = userServiceClient.getUser(senderId, jwt);
+
+        Optional<Message> message = messageRepository.findFirstByChatid(chatId);
+
+        if (message.isEmpty()){
+            System.out.println("is true3");
+            ChatRequestDTO chatRequestDTO1 = ChatRequestDTO.builder()
+                    .chatId(chatId)
+                    .lastMessage(dto.getText())
+                    .userId(senderId)
+                    .type("PRIVATE")
+                    .title(user.getUsername())
+                    .bio(user.getBio())
+                    .issend(user.getIssend())
+                    .build();
 
 
-        messagingTemplate.convertAndSendToUser(
-                dto.getRecipientId().toString(),
-                "/queue/chats",
-                chatRequestDTO1
-        );
+            messagingTemplate.convertAndSendToUser(
+                    dto.getRecipientId().toString(),
+                    "/queue/chats",
+                    chatRequestDTO1
+            );
+        }
+
+
 
         send(chatId, senderId, dto.getText(), jwt);
     }
@@ -74,6 +82,7 @@ public class MessageServiceImpl implements MessageServiceIntr {
     }
 
     private void send(Long chatId, Long senderId, String text, String jwt) {
+        System.out.println("is true2");
         Message message = Message.builder()
                 .chatid(chatId)
                 .senderid(senderId)

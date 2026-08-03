@@ -1,6 +1,7 @@
 package org.example.chatservice.src.Controllers;
 
 import lombok.AllArgsConstructor;
+import org.example.chatservice.src.DTO.UserDTO;
 import org.example.chatservice.src.Services.Impl.MessageServiceClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -47,6 +48,7 @@ public class ChatController {
 
         Chat chat = new Chat();
         chat.setType("GROUP");
+        chat.setTitle(groupCreateDTO.getTitle());
 
         if (groupCreateDTO.getMemberIds().isEmpty() || groupCreateDTO.getOwnerId()==null){
             return ResponseEntity.badRequest().build();
@@ -87,7 +89,9 @@ public class ChatController {
                         userIds.add(memberId.getUserid());
                     }
                     c1.setUserId(userIds);
+                    c1.setTitle(c.getTitle());
                     c1.setType(c.getType());
+                    System.out.println(c1);
                     chats.add(c1);
                 }
             }
@@ -106,12 +110,12 @@ public class ChatController {
                 ChatRequestDTO chatRequestDTO = new ChatRequestDTO();
                 chatRequestDTO.setChatId(chatMembers1.getChatid());
                 chatRequestDTO.setUserId(Collections.singletonList(chatMembers1.getUserid()));
-                String username = userServiceClient.getUsername(
+                UserDTO userDTO = userServiceClient.getUser(
                         chatMembers1.getUserid(),
                         jwt
                 );
 
-                chatRequestDTO.setTitle(username);
+                chatRequestDTO.setTitle(userDTO.getUsername());
                 chatRequestDTO.setType("PRIVATE");
                 chats.add(chatRequestDTO);
             }

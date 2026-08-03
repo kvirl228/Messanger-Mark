@@ -2,6 +2,8 @@ package org.example.chatservice.src.Services.Impl;
 
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
+import org.apache.catalina.User;
+import org.example.chatservice.src.DTO.UserDTO;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -16,20 +18,19 @@ public class UserServiceClient {
 
     private final RestTemplate restTemplate;
 
-    public String getUsername(Long userId, String authorization) {
+    public UserDTO getUser(Long userId, String authorization) {
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", authorization);
 
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        ResponseEntity<String> response = restTemplate.exchange(
+        ResponseEntity<UserDTO> response = restTemplate.exchange(
                 "http://localhost:8031/api/users/usernameForId/" + userId,
                 HttpMethod.GET,
                 entity,
-                String.class
+                UserDTO.class
         );
-
         return response.getBody();
     }
 }

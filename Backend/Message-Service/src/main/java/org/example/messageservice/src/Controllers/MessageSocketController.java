@@ -35,6 +35,7 @@ public class MessageSocketController {
 
     @MessageMapping("/chat.start")
     public void startPrivateChat(StartPrivateChatDTO dto, Principal principal) {
+        System.out.println(principal);
         Authentication authentication = (Authentication) principal;
         Long senderId = Long.valueOf(authentication.getName());
         String jwt = authentication.getCredentials().toString();

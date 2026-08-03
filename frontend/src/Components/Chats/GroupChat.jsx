@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { auth_service, chat_service, user_service } from '../../properties';
 import './Chat.css';
+import { useUser } from "../context/UserContext";
 
-function GroupChat({ userId, groupId, groupName, groupAvatar, creatorId }) {
+function GroupChat({ usersIds ,groupId, groupName, groupAvatar, creatorId }) {
+  const { user, setUser } = useUser();
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isClick, setIsClick] = useState(true)
@@ -11,8 +14,8 @@ function GroupChat({ userId, groupId, groupName, groupAvatar, creatorId }) {
   const [groupMembers, setGroupMembers] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [url, setUrl] = useState('');
+  const [userId, setUserId] = useState(user.userId);
   
-  // Состояния для редактирования
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState('');
 
@@ -22,7 +25,7 @@ function GroupChat({ userId, groupId, groupName, groupAvatar, creatorId }) {
 
   const refreshToken = async () => {
     try {
-      const response = await fetch("http://localhost:8080/auth/refresh", {
+      const response = await fetch(`${auth_service}/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" }
@@ -36,37 +39,6 @@ function GroupChat({ userId, groupId, groupName, groupAvatar, creatorId }) {
       return false
     } catch (error) {
       return false
-    }
-  }
-  
-  const subscribe = async () => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/group-messages/group/${groupId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          'Content-Type': 'application/json'
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setMessages([])
-        setMessages(prevMessages => [...prevMessages, ...data]);
-        setTimeout(() => {
-          subscribe()
-        }, 1500)
-      }
-      else if (response.status === 401) {
-        if (await refreshToken()) {
-          return await subscribe()
-        }
-      }
-    }
-    catch (error) {
-      setTimeout(() => {
-        subscribe()
-      }, 1)
     }
   }
 
@@ -136,21 +108,6 @@ function GroupChat({ userId, groupId, groupName, groupAvatar, creatorId }) {
       alert("Ошибка при редактировании сообщения");
     }
   };
-
-  // Функция для начала редактирования
-  const startEditing = (messageId, currentText) => {
-    setEditingMessageId(messageId);
-    setEditingText(currentText);
-    setIsClick(false);
-  };
-
-  // Функция для отмены редактирования
-  const cancelEditing = () => {
-    setEditingMessageId(null);
-    setEditingText('');
-    setIsClick(true);
-  };
-
   const deleteMessage = async (id) => {
     try {
       const response = await fetch(`http://localhost:8080/api/group-messages/${id}`, {
@@ -163,7 +120,6 @@ function GroupChat({ userId, groupId, groupName, groupAvatar, creatorId }) {
 
       if (response.ok) {
         setIsClick(true)
-        subscribe()
       } else if (response.status === 403) {
         alert("Вы можете удалять только свои сообщения");
       } else if (response.status === 401) {
@@ -175,76 +131,6 @@ function GroupChat({ userId, groupId, groupName, groupAvatar, creatorId }) {
       console.error('Ошибка:', error);
     }
   }
-
-  const click = (clicker, id) => {
-    setIsClick(clicker)
-    setDeleteId(id)
-  }
-
-  const getMembers = async () => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/groups/${groupId}/members`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem("token")}`,
-          'Content-Type': 'application/json'
-        },
-      });
-
-      if (response.ok) {
-        const members = await response.json();
-        setGroupMembers(members);
-      }
-    } catch (error) {
-      console.error('Ошибка при загрузке участников:', error);
-    }
-  }
-
-  const sendToBackend = async (imageUrl) => {
-        try {
-            const response = await fetch("http://localhost:8080/api/groups/avatar", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    id: userId,
-                    groupId: groupId,
-                    avatar: imageUrl
-                }),
-            });
-            console.log(userId);
-            console.log(imageUrl);
-            alert("Ссылка отправлена на backend!");
-        } catch (err) {
-            console.error("Ошибка отправки:", err);
-        }
-    };
-  
-    const uploadImage = async () => {
-        if (!image) return;
-        console.log(image)
-
-        const data = new FormData();
-        data.append("file", image);
-        data.append("upload_preset", "main_preset"); // your unsigned preset
-        data.append("cloud_name", "djrfj2vjf");
-
-        try {
-            const res = await fetch(
-                "https://api.cloudinary.com/v1_1/djrfj2vjf/image/upload",
-                {
-                    method: "POST",
-                    body: data,
-                }
-            );
-            const file = await res.json();
-            console.log(file.secure_url);
-            setUrl(file.secure_url); // This is the uploaded image URL
-            sendToBackend(file.secure_url);
-        } catch (err) {
-            console.error("Upload error:", err);
-        }
-    };
-
   const exitGroup = async (memberId) => {
     try {
       const response = await fetch(`http://localhost:8080/api/groups/${groupId}/members/${memberId}`, {
@@ -294,51 +180,110 @@ function GroupChat({ userId, groupId, groupName, groupAvatar, creatorId }) {
         alert("Ошибка при удалении участника");
       }
   }
+  const getMembers = async () => {
+    try {
+      const response = await fetch(`${user_service}/api/users/all/ids`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ids: usersIds
+        }),
+      });
+
+      if (response.ok) {
+        const members = await response.json();
+        setGroupMembers(members);
+      }
+    } catch (error) {
+      console.error('Ошибка при загрузке участников:', error);
+    }
+  }
+
+  // Функция для начала редактирования
+  const startEditing = (messageId, currentText) => {
+    setEditingMessageId(messageId);
+    setEditingText(currentText);
+    setIsClick(false);
+  };
+
+  // Функция для отмены редактирования
+  const cancelEditing = () => {
+    setEditingMessageId(null);
+    setEditingText('');
+    setIsClick(true);
+  };
+
+  
+
+  const click = (clicker, id) => {
+    setIsClick(clicker)
+    setDeleteId(id)
+  }
+
+  
+
+  const sendToBackend = async (imageUrl) => {
+        try {
+            const response = await fetch("http://localhost:8080/api/groups/avatar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: userId,
+                    groupId: groupId,
+                    avatar: imageUrl
+                }),
+            });
+            console.log(userId);
+            console.log(imageUrl);
+            alert("Ссылка отправлена на backend!");
+        } catch (err) {
+            console.error("Ошибка отправки:", err);
+        }
+    };
+  
+  const uploadImage = async () => {
+        if (!image) return;
+        console.log(image)
+
+        const data = new FormData();
+        data.append("file", image);
+        data.append("upload_preset", "main_preset"); // your unsigned preset
+        data.append("cloud_name", "djrfj2vjf");
+
+        try {
+            const res = await fetch(
+                "https://api.cloudinary.com/v1_1/djrfj2vjf/image/upload",
+                {
+                    method: "POST",
+                    body: data,
+                }
+            );
+            const file = await res.json();
+            console.log(file.secure_url);
+            setUrl(file.secure_url); // This is the uploaded image URL
+            sendToBackend(file.secure_url);
+        } catch (err) {
+            console.error("Upload error:", err);
+        }
+    };
+
+  
 
   const closeMembersPopup = () => {
     setShowMembersPopup(false);
   }
 
-  // const getUserId = async () => {
-  //       try {
-  //           const response = await fetch(`http://localhost:8080/api/users/id/${localStorage.getItem("token")}`, {
-  //               method: 'GET',
-  //               headers: {
-  //                   'Authorization': `Bearer ${localStorage.getItem("token")}`,
-  //                   'Content-Type': 'application/json'
-  //               },
-  //           });
-            
-  //           if (response.ok) {
-  //               const data = await response.json();
-  //               setuserId(data)
-  //               return data
-  //           } else if (response.status === 401) {
-  //               if (await refreshToken()) {
-  //                   return await getUserId()
-  //               }
-  //           }
-  //           return null
-  //       } catch (error) {
-  //           console.error('Ошибка:', error);
-  //           return null
-  //       }
-  //   }
-
   useEffect(() => {
-    subscribe()
     getMembers()
-    console.log(creatorId, userId)
     if(creatorId === userId){
       setIsAdmin(true);
     }
     else{
       setIsAdmin(false);
     }
-    // const init = async () => {
-    //     const id = await getUserId()
-    // }
-    // init()
   }, [])
 
   return (

@@ -16,6 +16,7 @@ import org.example.userservice.src.Entities.User;
 import org.example.userservice.src.Servicies.UserServiceIntr;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -87,7 +88,11 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
         else{
-            return ResponseEntity.status(HttpStatus.OK).body(user.getUsername());
+            UserRequestChatDTO userDTO = new UserRequestChatDTO();
+            userDTO.setBio(user.getBio());
+            userDTO.setUsername(user.getUsername());
+            userDTO.setIssend(user.getIssend());
+            return ResponseEntity.status(HttpStatus.OK).body(userDTO);
         }
     }
 
@@ -114,6 +119,7 @@ public class UserController {
             Claims claims = jwtCore.getAllClaimsFromToken(jwt);
             String userId = claims.get("userId").toString();
             List<ContactResponseDTO> contacts = userService.findAllContactsByUser(Long.valueOf(userId));
+            System.out.println(contacts);
             if(contacts==null){
                 return ResponseEntity.badRequest().build();
             }
@@ -123,6 +129,23 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @PostMapping("/all/ids")
+    public ResponseEntity<?> getAllUsersByIds(@RequestHeader("Authorization") String authorization,@RequestBody UsersIdsDTO dto){
+        String jwt = authorization.substring(7);
+        Claims claims = jwtCore.getAllClaimsFromToken(jwt);
+        String currentUserId = claims.get("userId").toString();
+        List<UserInfoForGroup> users = new ArrayList<>();
+        for (Long userId : dto.getIds()){
+            if(String.valueOf(userId).equals(currentUserId)){
+                continue;
+            }else{
+                User user = userService.findUserById(userId).orElseThrow();
+                users.add(UserInfoForGroup.builder().id(user.getId()).username(user.getUsername()).bio(user.getBio()).build());
+            }
+        }
+        return ResponseEntity.ok().body(users);
     }
 
     @PatchMapping("/change/username")

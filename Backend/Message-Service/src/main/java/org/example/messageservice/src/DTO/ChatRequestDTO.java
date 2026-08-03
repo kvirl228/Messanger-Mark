@@ -18,6 +18,8 @@ public class ChatRequestDTO {
     Long userId;
     Long chatId;
     String type;
+    String bio;
+    String issend;
     String lastMessage;
     LocalDate lastMessageSend;
 

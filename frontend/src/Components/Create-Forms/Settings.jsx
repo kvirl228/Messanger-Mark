@@ -34,9 +34,8 @@ function Settings(props) {
     const [whoCanSee, setWhoCanSee] = useState("ALL")
     const [whoCanAdd, setWhoCanAdd] = useState("ALL")
 
+    const initials = (user?.username || 'U').split(' ').map(s => s[0]).join('').slice(0,2).toUpperCase();
 
-
-    
     const navigate = useNavigate()
 
     const handleChangeName = (event) => {
@@ -316,18 +315,26 @@ function Settings(props) {
 
     return (
         <div className="forms_block_settings">
-            <div className="settings-form-container">
+            <div className="settings-form-container" style={{ maxWidth: 980, margin: '0 auto' }}>
+                {/* header — улучшено: подзаголовок внутри title */}
                 <div className="settings-form-header">
                     <button className="settings-form-close" onClick={toChats}>
                         <span className="close-icon">✕</span>
                     </button>
-                    <div className="settings-form-title">
+
+                    <div className="settings-form-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div className="settings-form-icon">⚙️</div>
-                        <h1>Настройки профиля</h1>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <h1>Настройки профиля</h1>
+                            <p className="settings-form-subtitle">Измените свои личные данные и настройки безопасности</p>
+                        </div>
                     </div>
-                    <p className="settings-form-subtitle">Измените свои личные данные и настройки безопасности</p>
+
+                    {/* пустой правый слот для равновесия (можно оставить для кнопок) */}
+                    <div style={{ flex: 1 }} />
                 </div>
 
+                {/* main scrollable content */}
                 <div className="settings-form-content">
                     {/* Секция изменения имени */}
                     <div className="settings-section">
@@ -378,23 +385,54 @@ function Settings(props) {
                             <h2>Изменить аватар</h2>
                         </div>
                         <div className="section-content">
-                            <input type="file" onChange={(e) => { e.preventDefault(); handleImageChange(e); }} />
-                            <button
-                                className="settings-btn-primary"
-                                onClick={(e) => { e.preventDefault(); uploadImage(); }}
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <span className="loading-spinner"></span>
-                                        Изменение...
-                                    </>
-                                ) : (
-                                    <>
-                                        <span className="btn-icon">✨</span>
-                                        Изменить аватар
-                                    </>
-                                )}
-                            </button>
+                            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                                {/* avatar picker (click circle to open hidden input) */}
+                                <div
+                                    className="avatar-picker"
+                                    onClick={() => document.getElementById('avatarInput')?.click()}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') document.getElementById('avatarInput')?.click(); }}
+                                >
+                                    {url ? (
+                                        <img src={url} alt="preview" />
+                                    ) : user?.avatar ? (
+                                        <img src={user.avatar} alt="avatar" />
+                                    ) : (
+                                        <div className="avatar-initials">{initials}</div>
+                                    )}
+                                    <div className="avatar-overlay" aria-hidden>✎</div>
+                                </div>
+
+                                <div style={{ flex: 1 }}>
+                                    <input
+                                        id="avatarInput"
+                                        type="file"
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        onChange={handleImageChange}
+                                    />
+                                    <div className="avatar-hint">Кликните по кругу, чтобы выбрать изображение</div>
+                                    <div style={{ height: 8 }} />
+                                    <button
+                                        className="settings-btn-primary"
+                                        onClick={(e) => { e.preventDefault(); uploadImage(); }}
+                                        disabled={isLoading}
+                                    >
+                                        {isLoading ? (
+                                            <>
+                                                <span className="loading-spinner"></span>
+                                                Изменение...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="btn-icon">✨</span>
+                                                Изменить аватар
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -511,43 +549,64 @@ function Settings(props) {
                         </div>
                     </div>
 
-                    <div>
-                        <label className="settings-label">
-                            <span className="label-icon">📩</span>
-                            Кто может писать вам сообщения: 
-                        </label>
-                        <select className="settings-select" value={howCanWrite} onChange={handleChangeHowCanWrite}>
-                            <option value="ALL">Все</option>
-                            <option value="CONTACTS">Контакты</option>
-                            <option value="NONE">Никто</option>
-                        </select>
+                    {/* PRIVACY / ACCESS — теперь с заголовком "Настройки профиля" и полной кнопкой */}
+                    <div className="settings-section privacy-section match-height">
+                        <div className="section-header">
+                            <span className="section-icon">🔒</span>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <h2>Настройки профиля</h2>
+                                <div className="section-subtitle">Приватность и доступ</div>
+                            </div>
+                        </div>
+                        <div className="section-content">
+                            <div>
+                                <label className="settings-label">
+                                    <span className="label-icon">📩</span>
+                                    Кто может писать вам сообщения
+                                </label>
+                                <select className="settings-select" value={howCanWrite} onChange={handleChangeHowCanWrite}>
+                                    <option value="ALL">Все</option>
+                                    <option value="CONTACTS">Контакты</option>
+                                    <option value="NONE">Никто</option>
+                                </select>
+                            </div>
 
-                        <label className="settings-label">
-                            <span className="label-icon">🔒</span>
-                            Ваш профиль виден:
-                        </label>
-                        <select className="settings-select" value={whoCanSee} onChange={handleChangeWhoCanSee}>
-                            <option value="ALL">Всем</option>
-                            <option value="CONTACTS">Контактам</option>
-                            <option value="NONE">Никому</option>
-                        </select>
+                            <div>
+                                <label className="settings-label" style={{ marginTop: 8 }}>
+                                    <span className="label-icon">🔎</span>
+                                    Кто видит ваш профиль
+                                </label>
+                                <select className="settings-select" value={whoCanSee} onChange={handleChangeWhoCanSee}>
+                                    <option value="ALL">Всем</option>
+                                    <option value="CONTACTS">Контактам</option>
+                                    <option value="NONE">Никому</option>
+                                </select>
+                            </div>
 
-                        <label className="settings-label">
-                            <span className="label-icon">➕</span>
-                            Кто может добавлять вас в группы:
-                        </label>
-                        <select className="settings-select" value={whoCanAdd} onChange={handleChangeWhoCanAdd}>
-                            <option value="ALL">Все</option>
-                            <option value="CONTACTS">Контакты</option>
-                            <option value="NONE">Никто</option>
-                        </select>
+                            <div>
+                                <label className="settings-label" style={{ marginTop: 8 }}>
+                                    <span className="label-icon">➕</span>
+                                    Кто может добавлять вас в группы
+                                </label>
+                                <select className="settings-select" value={whoCanAdd} onChange={handleChangeWhoCanAdd}>
+                                    <option value="ALL">Все</option>
+                                    <option value="CONTACTS">Контакты</option>
+                                    <option value="NONE">Никто</option>
+                                </select>
+                            </div>
 
-                        <button className="settings-btn-primary" onClick={changeUserSettings}>
-                            Сохранить настройки
-                        </button>
+                            <div style={{ marginTop: 8 }}>
+                                <button
+                                    className="settings-btn-primary settings-btn-block"
+                                    onClick={changeUserSettings}
+                                >
+                                    Сохранить настройки
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Информационная панель */}
+                    {/* Информационная панель (оставляем ниже)
                     <div className="settings-info-panel">
                         <div className="info-item">
                             <span className="info-icon">💡</span>
@@ -563,7 +622,28 @@ function Settings(props) {
                                 <p>После изменения пароля вы будете автоматически выйдены из системы</p>
                             </div>
                         </div>
-                        <button type="button" className="password-toggle-btn"onClick={() => exit()}>Выход</button>
+                        {/* <button type="button" className="password-toggle-btn"onClick={() => exit()}>Выход</button> */}
+                    {/* </div> */} 
+                </div>
+
+                {/* footer — кнопки внизу */}
+                <div className="settings-footer">
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                            className="group-form-btn-secondary"
+                            type="button"
+                            onClick={() => { navigator.clipboard?.writeText(userid); alert('ID скопирован'); }}
+                        >
+                            Копировать ID
+                        </button>
+
+                        <button
+                            className="settings-btn-primary"
+                            type="button"
+                            onClick={() => exit()}
+                        >
+                            Выйти
+                        </button>
                     </div>
                 </div>
             </div>

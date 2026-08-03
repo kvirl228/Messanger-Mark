@@ -35,6 +35,7 @@ public class UserServiceImpl implements UserServiceIntr {
 
     public List<ContactResponseDTO> findAllContactsByUser(Long id){
         User user = userRepository.findById(id).orElseThrow();
+        System.out.println(user.getContacts());
         List<Long> contactsIds = user.getContacts();
         if(contactsIds==null){
             return null;

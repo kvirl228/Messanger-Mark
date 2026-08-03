@@ -47,30 +47,68 @@ function Chats() {
             setIsClick(true)
             setChat(<></>)
         }else {
-            let isContact = false
-            if (user.contacts && user.contacts.length > 0) {
-                console.log('Checking if user2Id is in contacts:', user2Id);
-                for (let i = 0; i < user.contacts.length; i++) {
-                    console.log('Checking contact:', user.contacts[i]);
-                    if (user.contacts[i] == user2Id) {       
-                        isContact = true
-                        break
-                    }
-                }
-            } 
-            setIsClick(!value)
-            
-            if(chatId === null){
-                if ( chats.length > 0) {
-                    for (let i = 0; i < chats.length; i++) {
-                        if (chats[i].type=="PRIVATE" && chats[i].userId[0] === user2Id) {
-                            chatId = chats[i].chatId
-                            break
-                        }else if (chats[i].type=="GROUP" && chats[i].title === name) { 
-                            chatId = chats[i].chatId
+            if (type === "GROUP") {
+                setSelectedChatId(chatId)
+                setIsClick(!value)
+                setChat(<GroupChat
+                    chatid={chatId}
+                    usersIds={user2Id}
+                    groupName={name}
+                    img={img}
+                    bio={bio}
+                    type={type}
+                />)
+
+            }else{
+                let isContact = false
+                if (user.contacts && user.contacts.length > 0) {
+                    console.log('Checking if user2Id is in contacts:', user2Id);
+                    for (let i = 0; i < user.contacts.length; i++) {
+                        console.log('Checking contact:', user.contacts[i]);
+                        if (user.contacts[i] == user2Id) {       
+                            isContact = true
                             break
                         }
                     }
+                } 
+                setIsClick(!value)
+                
+                if(chatId === null){
+                    if ( chats.length > 0) {
+                        for (let i = 0; i < chats.length; i++) {
+                            if (chats[i].type=="PRIVATE" && chats[i].userId[0] === user2Id) {
+                                chatId = chats[i].chatId
+                                break
+                            }else if (chats[i].type=="GROUP" && chats[i].title === name) { 
+                                chatId = chats[i].chatId
+                                break
+                            }
+                        }
+                        setSelectedChatId(chatId)  
+                        setChat(<Chat
+                            chatid={chatId}
+                            user2Id={user2Id}
+                            username={name}
+                            img={img}
+                            bio={bio}
+                            contact={isContact}
+                            type={type}
+                        />)
+
+                    }else{
+                        setSelectedChatId(-1)  
+                        setChat(<Chat
+                            chatid={null}
+                            user2Id={user2Id}
+                            username={name}
+                            img={img}
+                            bio={bio}
+                            contact={isContact}
+                            type={type}
+                        />)
+                    }
+                }
+                else{
                     setSelectedChatId(chatId)  
                     setChat(<Chat
                         chatid={chatId}
@@ -81,33 +119,8 @@ function Chats() {
                         contact={isContact}
                         type={type}
                     />)
-
-                }else{
-                    setSelectedChatId(-1)  
-                    setChat(<Chat
-                        chatid={null}
-                        user2Id={user2Id}
-                        username={name}
-                        img={img}
-                        bio={bio}
-                        contact={isContact}
-                        type={type}
-                    />)
                 }
-            }
-            else{
-                setSelectedChatId(chatId)  
-                setChat(<Chat
-                    chatid={chatId}
-                    user2Id={user2Id}
-                    username={name}
-                    img={img}
-                    bio={bio}
-                    contact={isContact}
-                    type={type}
-                />)
-            }
-            
+            }            
         }
     }
 
@@ -189,6 +202,7 @@ function Chats() {
 
     useEffect(() => {
             getAllChatsOfUser()
+            console.log("User info:", chats)
             function handleKeyDown(event) {
                 if (event.key === 'Escape') {
                     setChat(<></>)
@@ -205,6 +219,7 @@ function Chats() {
     }, []);
 
     useEffect(() => {
+
         const chatListener = (chat) => {
 
         console.log("ChatList event:", chat);
@@ -264,7 +279,7 @@ function Chats() {
                                     key = {index}
                                     name = {item.title}
                                     img={item.avatar}
-                                    text={item.lastMessage?.text || ""}
+                                    text={item.lastMessage || ""}
                                     time={item.lastMessage?.timestamp || ""}
                                     func = {() => clickChat(isClick, item.chatId, item.userId, item.bio, item.title, item.avatar, item.type)}
                                     isSelected={selectedChatId === item.chatId}
