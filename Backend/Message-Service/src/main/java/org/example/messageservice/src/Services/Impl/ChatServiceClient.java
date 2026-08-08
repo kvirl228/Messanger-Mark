@@ -54,4 +54,12 @@ public class ChatServiceClient {
                 .retrieve()
                 .body(Boolean.class);
     }
+
+    public void deleteAll(Long chatId, String jwt){
+        restClient.delete()
+                .uri("http://localhost:8032/api/chats/delete/{chatId}", chatId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
+                .retrieve()
+                .toBodilessEntity();
+    }
 }

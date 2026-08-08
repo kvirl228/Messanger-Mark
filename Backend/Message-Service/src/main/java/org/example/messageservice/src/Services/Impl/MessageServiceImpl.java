@@ -158,26 +158,58 @@ public class MessageServiceImpl implements MessageServiceIntr {
             return;
         }
         Long chatId = message.getChatid();
-        message.setText(text);
-        messageRepository.save(message);
-//        Map<String, Object> response = new HashMap<>();
-        MessageResponseDTO dto = MessageResponseDTO.builder()
-                .responseType("EDIT")
-                .id(message.getId())
-                .senderid(message.getSenderid())
-                .chatId(message.getChatid())
-                .text(message.getText())
-                .build();
-//        response.put("type", "EDIT");
-//        response.put("messageId", messageId);
-        List<Long> members = chatServiceClient.getMembers(chatId, jwt);
-        for (Long id : members){
-            messagingTemplate.convertAndSendToUser(
-                    id.toString(),
-                    "/queue/messages",
-                    dto
-            );
+        if(messageRepository.findFirstByChatidOrderBySendtimeDesc(chatId).get().getId().equals(message.getId())){
+            message.setText(text);
+            messageRepository.save(message);
+            MessageResponseDTO dto = MessageResponseDTO.builder()
+                    .responseType("EDIT")
+                    .id(message.getId())
+                    .type(message.getType())
+                    .senderid(message.getSenderid())
+                    .chatId(message.getChatid())
+                    .text(message.getText())
+                    .sendtime(message.getSendtime())
+                    .build();
+            ChatSendDTO chatDTO2 = new ChatSendDTO();
+            chatDTO2.setLastMessage(message.getText());
+            chatDTO2.setResponseType("MESSAGE");
+            chatDTO2.setSendtime(message.getSendtime());
+            chatDTO2.setChatId(message.getChatid());
+            List<Long> members = chatServiceClient.getMembers(chatId, jwt);
+            for (Long id : members){
+                messagingTemplate.convertAndSendToUser(
+                        id.toString(),
+                        "/queue/messages",
+                        dto
+                );
+                messagingTemplate.convertAndSendToUser(
+                        id.toString(),
+                        "/queue/chats",
+                        chatDTO2
+                );
+            }
+        }else{
+            message.setText(text);
+            messageRepository.save(message);
+            MessageResponseDTO dto = MessageResponseDTO.builder()
+                    .responseType("EDIT")
+                    .id(message.getId())
+                    .type(message.getType())
+                    .senderid(message.getSenderid())
+                    .chatId(message.getChatid())
+                    .text(message.getText())
+                    .sendtime(message.getSendtime())
+                    .build();
+            List<Long> members = chatServiceClient.getMembers(chatId, jwt);
+            for (Long id : members){
+                messagingTemplate.convertAndSendToUser(
+                        id.toString(),
+                        "/queue/messages",
+                        dto
+                );
+            }
         }
+
     }
 
 
@@ -187,18 +219,55 @@ public class MessageServiceImpl implements MessageServiceIntr {
             return;
         }
         Long chatId = message.getChatid();
-        messageRepository.deleteById(messageId);
-        Map<String, Object> response = new HashMap<>();
-        response.put("responseType", "DELETE");
-        response.put("messageId", messageId);
-        List<Long> members = chatServiceClient.getMembers(chatId, jwt);
-        for (Long ids : members){
-            messagingTemplate.convertAndSendToUser(
-                    ids.toString(),
-                    "/queue/messages",
-                    response
-            );
+
+//        if(messageRepository.findAllByChatidOrderByIdAsc(chatId).isEmpty()){
+//            chatServiceClient.deleteAll(chatId, jwt);
+//        }else{
+            if(messageRepository.findFirstByChatidOrderBySendtimeDesc(chatId).get().getId().equals(messageId)){
+                messageRepository.deleteById(messageId);
+                Map<String, Object> response = new HashMap<>();
+                response.put("responseType", "DELETE");
+                response.put("messageId", messageId);
+                List<Long> members = chatServiceClient.getMembers(chatId, jwt);
+
+                Message newer = messageRepository.findFirstByChatidOrderBySendtimeDesc(chatId).orElseThrow();
+                System.out.println(newer);
+                ChatSendDTO chatDTO2 = new ChatSendDTO();
+                chatDTO2.setLastMessage(newer.getText());
+                chatDTO2.setResponseType("MESSAGE");
+                chatDTO2.setSendtime(newer.getSendtime());
+                chatDTO2.setChatId(newer.getChatid());
+
+                for (Long ids : members){
+                    messagingTemplate.convertAndSendToUser(
+                            ids.toString(),
+                            "/queue/messages",
+                            response
+                    );
+                    messagingTemplate.convertAndSendToUser(
+                            ids.toString(),
+                            "/queue/chats",
+                            chatDTO2
+                    );
+                }
+
+            }else{
+                messageRepository.deleteById(messageId);
+                Map<String, Object> response = new HashMap<>();
+                response.put("responseType", "DELETE");
+                response.put("messageId", messageId);
+                List<Long> members = chatServiceClient.getMembers(chatId, jwt);
+
+                for (Long ids : members){
+                    messagingTemplate.convertAndSendToUser(
+                            ids.toString(),
+                            "/queue/messages",
+                            response
+                    );
+                }
         }
+//        }
+
     }
 
 

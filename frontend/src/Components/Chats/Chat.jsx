@@ -5,7 +5,7 @@ import './Chat.css';
 import { useUser } from "../context/UserContext";
 import WebSocketService from "../../Service/WebSocketService";
 
-function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
+function Chat({ chatid, user2Id, username ,bio, img, contact, type, onExit}) {
 
   const { user, setUser } = useUser();
 
@@ -275,7 +275,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
         },
         body: JSON.stringify({
           userId: user.userId,
-          contactId: user2Id,
+          contactId: user2Id[0],
         })
       });
       if (response.ok) {
@@ -323,6 +323,21 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
       if (response.ok) {
         setIsContact(false)
         alert("yes")
+        try{
+                const userResponse = await fetch(`${user_service}/api/users/user/info/${localStorage.getItem("token")}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem("token")}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (userResponse.ok) {
+                    const user = await userResponse.json();
+                    setUser(user);
+                }
+            } catch (error) {
+                console.error('Ошибка при получении информации о пользователе:', error);
+            }
       }
       else {
         alert("Eror")
@@ -347,7 +362,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
         }
       });
       if (response.ok) {
-        window.location.reload();
+        onExit(); // Call the onExit callback to handle chat deletion in the parent component
         alert("yes")
       }
       else {

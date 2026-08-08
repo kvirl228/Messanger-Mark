@@ -102,6 +102,13 @@ function Chats() {
                             bio={bio}
                             contact={isContact}
                             type={type}
+                            onExit={() => {
+                                setChats(prev => prev.filter(chat => chat.chatId !== chatId));
+                                setSelectedChatId(null);
+                                setIsClick(true);
+                                setChat(<></>);
+                                
+                            }}
                         />)
 
                     }else{
@@ -114,6 +121,12 @@ function Chats() {
                             bio={bio}
                             contact={isContact}
                             type={type}
+                            onExit={() => {
+                                setChats(prev => prev.filter(chat => chat.chatId !== chatId));
+                                setSelectedChatId(null);
+                                setIsClick(true);
+                                setChat(<></>);
+                            }}
                         />)
                     }
                 }
@@ -127,6 +140,13 @@ function Chats() {
                         bio={bio}
                         contact={isContact}
                         type={type}
+                        onExit={() => {
+                            setChats(prev => prev.filter(chat => chat.chatId !== chatId));
+                            setSelectedChatId(null);
+                            setIsClick(true);
+                            setChat(<></>);
+                            
+                        }}
                     />)
                 }
             }            

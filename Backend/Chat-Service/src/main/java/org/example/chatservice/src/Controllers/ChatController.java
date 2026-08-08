@@ -92,7 +92,7 @@ public class ChatController {
                     }
                     MessageResponseDTO lastMsg = messageServiceClient.getLastMessage(c.getId(), jwt);
                     if (lastMsg != null){
-                        if (lastMsg.getType().equals("IMG")){
+                        if (lastMsg.getType().equals("img")){
                             c1.setLastMessage("img");
                             c1.setSendtime(lastMsg.getSendtime());
                         }else{
@@ -212,7 +212,12 @@ public class ChatController {
     @DeleteMapping("/delete/{chatId}")
     public ResponseEntity<?> deleteChatById(@PathVariable Long chatId, @RequestHeader("Authorization") String jwt){
         messageServiceClient.deleteMessages(chatId, jwt);
-        chatMembersServiceImpl.deleteChatMembersByChatid(chatId);
+        List<ChatMembers> members = chatMembersServiceImpl.findChatMembersByChatid(chatId);
+        System.out.println(members);
+        for(ChatMembers member : members){
+            chatMembersServiceImpl.deleteChatMemberByUserId(member.getId());
+        }
+//        chatMembersServiceImpl.deleteChatMembersByChatid(chatId);
         chatServiceImpl.deleteChatByChatid(chatId);
         return ResponseEntity.ok().build();
     }
