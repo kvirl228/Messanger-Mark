@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import { auth_service, user_service, chat_service, message_service } from "../../properties"
+import { auth_service, user_service, chat_service, message_service, file_service } from "../../properties"
 import './Chat.css';
 
 import { useUser } from "../context/UserContext";
@@ -21,7 +21,13 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
   const [isContact, setIsContact] = useState(contact);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState('');
+  const [onlineStatus, setOnlineStatus] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState(null);
+  const [pendingPreview, setPendingPreview] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,7 +64,25 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
       return false
     }
   }
-    
+
+  const checkOnlineStatus = async () => {
+    try {
+      const response = await fetch(`${message_service}/api/messages/online/${user2Id}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        console.log('Пользователь онлайн');
+        setOnlineStatus(true);
+      }
+    } catch (error) {
+      console.error('Ошибка при проверке статуса онлайн:', error);
+    }
+  }
+
   const sendMessage = () => {
     if (inputText.trim() === "") return;
     console.log(WebSocketService.connected);
@@ -66,7 +90,8 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
     if (chatId == null) {
         WebSocketService.send("/app/chat.start", {
             recipientId: user2Id,
-            text: inputText
+            text: inputText,
+            type: "TEXT"
         });
     }
     // Обычное сообщение
@@ -74,7 +99,8 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
 
         WebSocketService.send("/app/chat.send", {
             chatId: chatId,
-            text: inputText
+            text: inputText,
+            type: "TEXT"
         });
         scrollToBottom();
 
@@ -82,6 +108,104 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
 
     setInputText("");
 
+  };
+
+  const sendImageMessage = async (imageUrl) => {
+    console.log("Sending image message:", imageUrl);
+    const payload = {
+        chatId: chatId,
+        text: imageUrl,
+        type: "img",
+    };
+
+
+    if (chatId == null) {
+
+        WebSocketService.send("/app/chat.start", {
+            recipientId: user2Id,
+            text: imageUrl,
+            type: "img"
+        });
+
+    } else {
+
+        WebSocketService.send(
+            "/app/chat.send",
+            payload
+        );
+
+    }
+
+    scrollToBottom();
+  };
+
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAttachmentChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Пожалуйста, выберите изображение");
+      event.target.value = "";
+      return;
+    }
+
+    if (pendingPreview) {
+      URL.revokeObjectURL(pendingPreview);
+    }
+
+    setPendingAttachment(file);
+    setPendingPreview(URL.createObjectURL(file));
+    setInputText("");
+    event.target.value = "";
+  };
+
+  const clearPendingAttachment = () => {
+    if (pendingPreview) {
+      URL.revokeObjectURL(pendingPreview);
+    }
+    setPendingAttachment(null);
+    setPendingPreview(null);
+  };
+
+  const openImagePreview = (imageUrl) => {
+    setSelectedImage(imageUrl);
+  };
+
+  const closeImagePreview = () => {
+    setSelectedImage(null);
+  };
+
+  const sendPendingAttachment = async () => {
+    if (!pendingAttachment) return;
+
+    setIsUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", pendingAttachment);
+
+      const response = await fetch(`${file_service}/api/files/upload`, {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error("Ошибка загрузки файла");
+      }
+
+      const fileData = await response.json();
+      await sendImageMessage(fileData.url);
+      clearPendingAttachment();
+    } catch (error) {
+      console.error("Ошибка отправки фото:", error);
+      alert("Не удалось отправить фотографию");
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const deleteMessage = (messageId) => {
@@ -111,8 +235,12 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
         }
       }); if (response.ok) {
         const data = await response.json();
-        setMessages(Array.isArray(data) ? data : [data]);
-        console.log("MESSAGES:", data);
+        const normalizedMessages = (Array.isArray(data) ? data : [data]).map((msg) => ({
+          ...msg,
+          type: String(msg?.type || "text").toLowerCase()
+        }));
+        setMessages(normalizedMessages);
+        console.log("MESSAGES:", normalizedMessages);
       } else {
         console.error('Ошибка при получении сообщений');
       }
@@ -147,7 +275,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
         },
         body: JSON.stringify({
           userId: user.userId,
-          contactId: user2Id[0],
+          contactId: user2Id,
         })
       });
       if (response.ok) {
@@ -233,31 +361,37 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
   useEffect(() => {
     console.log(chatId, user2Id, username, bio, img, contact, type)
     getMessages();
+    checkOnlineStatus();
     scrollToBottom();
     const listener = (message) => {
       console.log("Received message:", message);
-      if (message.type === "DELETE") {
-          setMessages(prev => prev.filter(m => m.id !== message.messageId));
+      const normalizedMessage = {
+        ...message,
+        type: String(message?.type || message?.responseType || "text").toLowerCase()
+      };
+
+      if (normalizedMessage.responseType === "DELETE") {
+          setMessages(prev => prev.filter(m => m.id !== normalizedMessage.messageId));
         return;
       }
-      if (message.type === "EDIT") {
-        console.log("Editing message:", message.id, message.text);
+      if (normalizedMessage.responseType === "EDIT") {
+        console.log("Editing message:", normalizedMessage.id, normalizedMessage.text);
         setMessages(prev =>
             prev.map(m =>
-                m.id === message.id
-                    ? message
+                m.id === normalizedMessage.id
+                    ? normalizedMessage
                     : m
             )
         );
         return;
       }
-      if (message.type === "MESSAGE") {
-        if (message.chatId !== chatId && chatId !== null) {
+      if (normalizedMessage.responseType === "MESSAGE") {
+        if (normalizedMessage.chatId !== chatId && chatId !== null) {
           return;
         }
-        setMessages(prev => [...prev, message]);
+        setMessages(prev => [...prev, normalizedMessage]);
       }
-      if(message.type == "PRIVATE"){
+      if(normalizedMessage.responseType === "PRIVATE"){
         return;
       }
     };
@@ -292,9 +426,24 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
 
   const displayedMessages = searchMode ? filteredMessages : messages;
 
+  const formatDateLabel = (inputDate) => {
+    const msgDate = new Date(inputDate);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfMsg = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
+    const daysDiff = Math.round((startOfMsg - startOfToday) / 86400000);
+
+    if (daysDiff === 0) return 'Сегодня';
+    if (daysDiff === -1) return 'Вчера';
+    const opts = { day: 'numeric', month: 'long' };
+    if (msgDate.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+    return msgDate.toLocaleDateString('ru-RU', opts);
+  }
+
   return (
     <div className="chat-container">
       <div className="chat-header">
+        {/* <button onClick={() => console.log(messages )}>show</button> */}
         <div className="chat-header-info" onClick={handleUsernameClick}>
           <div className="chat-user-avatar">
             {img != null ? (
@@ -303,13 +452,13 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
               <span className="avatar-placeholder">👤</span>
             )}
             <div className="online-indicator">
-              {userInfo?.online ? '🟢' : '⚪'}
+              {onlineStatus ? '🟢' : '⚪'}
             </div>
           </div>
           <div className="chat-user-info">
             <h3 className="chat-username">{username}</h3>
             <p className="chat-status">
-              {userInfo?.online ? 'В сети' : 'Не в сети'}
+              {onlineStatus ? 'В сети' : 'Не в сети'}
             </p>
           </div>
         </div>
@@ -364,112 +513,191 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
           </div>
         ) : (
           <div className="messages-list">
-            {displayedMessages.map((msg, index) => (
-              <div key={`${msg.timestamp}-${index}`} className={`message-wrapper ${msg.senderid === user.userId ? 'my_message' : 'their_message'}`}>
-                <div className="message-bubble">
-                  {editingMessageId === msg.id ? (
-                    // Режим редактирования
-                    <div className="message-edit-container">
-                      <input
-                        type="text"
-                        value={editingText}
-                        onChange={(e) => setEditingText(e.target.value)}
-                        className="message-edit-input"
-                        autoFocus
-                      />
-                      <div className="message-edit-actions">
-                        <button 
-                          className="edit-save-btn"
-                          onClick={() => editMessage(msg.id, editingText)}
-                          // disabled={!editingText.trim()}
-                        >
-                          💾
-                        </button>
-                        <button 
-                          className="edit-cancel-btn"
-                          onClick={cancelEditing}
-                        >
-                          ❌
-                        </button>
-                      </div>
+            {(() => {
+              const elements = [];
+              let lastDateStr = null;
+              for (let i = 0; i < displayedMessages.length; i++) {
+                const msg = displayedMessages[i];
+                const rawTime = msg.sendtime ?? msg.timestamp ?? msg.createdAt ?? msg.sendTime;
+                const msgDate = new Date(rawTime);
+                const dayStr = isNaN(msgDate.getTime()) ? `unknown-${i}` : msgDate.toDateString();
+                if (dayStr !== lastDateStr) {
+                  elements.push(
+                    <div key={`date-${dayStr}-${i}`} className="date-separator">
+                      <span className="date-separator-text">{isNaN(msgDate.getTime()) ? 'Неизвестная дата' : formatDateLabel(msgDate)}</span>
                     </div>
-                  ) : (
-                    // Обычный режим отображения
-                    <>
-                      <div className="message-content">{msg.text}</div>
-                      <div className="message-time">
-                        {new Date(msg.timestamp).toLocaleTimeString('ru-RU', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </div>
-                      {msg.senderId === user.userid && (
-                        <div className="message-status">
-                          {msg.userid}
+                  );
+                  lastDateStr = dayStr;
+                }
+
+                const key = msg.id ?? rawTime ?? i;
+                const messageType = String(msg?.type || 'text').toLowerCase();
+                const imageUrl = messageType === 'img'
+                  ? (msg?.text || msg?.img || msg?.imageUrl || msg?.image || msg?.fileUrl || msg?.url || null)
+                  : null;
+                const textContent = messageType === 'text' ? (msg?.text ?? '') : '';
+
+                elements.push(
+                  <div key={`${key}-${i}`} className={`message-wrapper ${msg.senderid === user.userId ? 'my_message' : 'their_message'}`}>
+                    <div className="message-bubble">
+                      {editingMessageId === msg.id ? (
+                        <div className="message-edit-container">
+                          <input
+                            type="text"
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            className="message-edit-input"
+                            autoFocus
+                          />
+                          <div className="message-edit-actions">
+                            <button 
+                              className="edit-save-btn"
+                              onClick={() => editMessage(msg.id, editingText)}
+                            >
+                              💾
+                            </button>
+                            <button 
+                              className="edit-cancel-btn"
+                              onClick={cancelEditing}
+                            >
+                              ❌
+                            </button>
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          {imageUrl ? (
+                            <div className="message-image-wrapper" onClick={() => openImagePreview(imageUrl)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openImagePreview(imageUrl); } }}>
+                              <img src={imageUrl} alt="Attachment" className="message-image" />
+                            </div>
+                          ) : (
+                            <div className="message-content">{textContent}</div>
+                          )}
+                          <div className="message-time">{
+                            new Date(rawTime).toLocaleTimeString('ru-RU', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                          {msg.senderId === user.userid && (
+                            <div className="message-status">
+                              {msg.userid}
+                            </div>
+                          )}
+                          {msg.senderid === user.userId && (
+                            <div className="message-actions">
+                              <button 
+                                className="message-action-btn edit-btn"
+                                onClick={() => startEditing(msg.id, msg.text)}
+                                title="Редактировать"
+                              >
+                                ✏️
+                              </button>
+                              <button 
+                                className="message-action-btn delete-btn"
+                                onClick={deleteMessage.bind(null, msg.id)}
+                                title="Удалить"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
-                      {msg.senderid === user.userId && (
-                        <div className="message-actions">
-                          <button 
-                            className="message-action-btn edit-btn"
-                            onClick={() => startEditing(msg.id, msg.text)}
-                            title="Редактировать"
-                          >
-                            ✏️
-                          </button>
-                          <button 
-                            className="message-action-btn delete-btn"
-                            onClick={deleteMessage.bind(null, msg.id)}
-                            title="Удалить"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
+                    </div>
+                  </div>
+                );
+              }
+              return elements;
+            })()}
           </div>
         )}
       </div>
 
-      {isClick ? (
-        <div className="chat-input-panel">
-          <div className="input-container">
-            <button className="attachment-btn" title="Прикрепить файл">
-              <span className="attachment-icon">📎</span>
-            </button>
-            <div className="input-wrapper">
-              <input
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Введите сообщение..."
-                className="chat-input"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    // e.preventDefault();
-                    // if (!inputText.trim()) {
-                    //   sendMessage();
-                    // }
-                  }
-                }}
-              />
-              <button className="emoji-btn" title="Эмодзи">
-                <span className="emoji-icon">😊</span>
-              </button>
-            </div>
-            <button
-              className="send-btn"
-              onClick={sendMessage}
-              // disabled={!inputText.trim()}
-              title="Отправить"
-            >
-              <span className="send-icon">📤</span>
-            </button>
+      {selectedImage && (
+        <div className="image-preview-overlay" onClick={closeImagePreview}>
+          <div className="image-preview-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="image-preview-close" onClick={closeImagePreview} title="Закрыть">✕</button>
+            <img src={selectedImage} alt="Full preview" className="image-preview-full" />
           </div>
         </div>
+      )}
+
+      {isClick ? (
+        pendingAttachment ? (
+          <div className="chat-input-panel">
+            <div className="attachment-preview-panel">
+              <div className="attachment-preview-card">
+                {pendingPreview && <img src={pendingPreview} alt="preview" className="attachment-preview-image" />}
+                <div className="attachment-preview-info">
+                  <div className="attachment-preview-name">{pendingAttachment.name}</div>
+                  <div className="attachment-preview-hint">Фото готово к отправке</div>
+                </div>
+              </div>
+              <div className="attachment-preview-actions">
+                <button className="cancel-btn" onClick={clearPendingAttachment}>
+                  ✕ Отмена
+                </button>
+                <button
+                  className="send-btn"
+                  onClick={sendPendingAttachment}
+                  disabled={isUploadingImage}
+                  title="Отправить фото"
+                >
+                  {isUploadingImage ? '⏳' : '📤'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="chat-input-panel">
+            <div className="input-container">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAttachmentChange}
+              />
+              <button
+                className="attachment-btn"
+                title="Прикрепить файл"
+                onClick={handleAttachmentClick}
+                disabled={isUploadingImage}
+              >
+                <span className="attachment-icon">📎</span>
+              </button>
+              <div className="input-wrapper">
+                <input
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Введите сообщение..."
+                  className="chat-input"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      sendMessage();
+                      // e.preventDefault();
+                      // if (!inputText.trim()) {
+                      //   sendMessage();
+                      // }
+                    }
+                  }}
+                />
+                <button className="emoji-btn" title="Эмодзи">
+                  <span className="emoji-icon">😊</span>
+                </button>
+              </div>
+              <button
+                className="send-btn"
+                onClick={sendMessage}
+                // disabled={!inputText.trim()}
+                title="Отправить"
+              >
+                <span className="send-icon">📤</span>
+              </button>
+            </div>
+          </div>
+        )
       ) : (
         <div className="delete-panel">
           {editingMessageId ? (
@@ -532,6 +760,7 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
+                  sendMessage();
                   // if (inputText.trim()) {
                   //   sendMessage();
                   // }
@@ -559,8 +788,8 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
           <div className="user-popup" onClick={(e) => e.stopPropagation()}>
             <div className="user-popup-header">
               <div className="user-popup-avatar">
-                {userInfo?.avatar ? (
-                  <img src={userInfo.avatar} alt="Avatar" />
+                {img ? (
+                  <img src={img} alt="Avatar" />
                 ) : (
                   <div className="user-popup-avatar-placeholder">👤</div>
                 )}
@@ -568,14 +797,14 @@ function Chat({ chatid, user2Id, username ,bio, img, contact, type}) {
               <div className="user-popup-info">
                 <h3 className="user-popup-name">{userInfo?.username || username}</h3>
                 <p className="user-popup-status">
-                  {userInfo?.online ? '🟢 В сети' : '⚪ Не в сети'}
+                  {onlineStatus ? '🟢 В сети' : '⚪ Не в сети'}
                 </p>
               </div>
               <button className="user-popup-close" onClick={closeUserPopup}>✕</button>
             </div>
 
             <div className="user-popup-content">
-              {userInfo?.bio && (
+              {userInfo.bio && (
                 <div className="user-popup-bio">
                   <h4>О себе:</h4>
                   <p>{userInfo.bio}</p>

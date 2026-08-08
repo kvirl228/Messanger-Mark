@@ -5,8 +5,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.security.Timestamp;
+import java.time.LocalDateTime;
 
 @Entity
 @AllArgsConstructor
@@ -27,13 +29,19 @@ public class Message {
     @Column(name = "c_chatid")
     Long chatid;
 
+    @Column(name = "c_type")
+    String type;
+
     @Column(name = "c_text")
     String text;
 
-//    @Column(name = "c_sendtime")
-//    Timestamp sendtime;
+    @Column(name = "c_img")
+    String img;
 
-    @Column(name = "c_messagestatus")
-    boolean messagestatus;
+    @CreationTimestamp
+    @Column(nullable = false, name = "c_sendtime")
+    private LocalDateTime sendtime;
+
+
 
 }

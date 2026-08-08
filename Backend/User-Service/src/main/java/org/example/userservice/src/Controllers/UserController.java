@@ -1,24 +1,21 @@
 package org.example.userservice.src.Controllers;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
 import lombok.AllArgsConstructor;
 import org.example.userservice.src.DTO.*;
+import org.example.userservice.src.DTO.Change.AvatarDTO;
+import org.example.userservice.src.DTO.Change.SettingsDTO;
 import org.example.userservice.src.JWT.JwtCore;
 import org.example.userservice.src.Servicies.Impl.UserServiceImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 import org.example.userservice.src.Entities.User;
-import org.example.userservice.src.Servicies.UserServiceIntr;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -59,6 +56,7 @@ public class UserController {
                 userRequestDto.setId(user.getId());
                 userRequestDto.setUsername(user.getUsername());
                 userRequestDto.setBio(user.getBio());
+                userRequestDto.setAvatar(user.getAvatar());
                 return ResponseEntity.status(HttpStatus.OK).body(userRequestDto);
             }
         } catch (UsernameNotFoundException e){
@@ -90,6 +88,7 @@ public class UserController {
         else{
             UserRequestChatDTO userDTO = new UserRequestChatDTO();
             userDTO.setBio(user.getBio());
+            userDTO.setAvatar(user.getAvatar());
             userDTO.setUsername(user.getUsername());
             userDTO.setIssend(user.getIssend());
             return ResponseEntity.status(HttpStatus.OK).body(userDTO);
@@ -104,6 +103,7 @@ public class UserController {
             User user = userService.findUserById(Long.valueOf(userId)).orElseThrow();
             UserInfoDTO response = new UserInfoDTO();
             response.setUserId(Long.valueOf(userId));
+            response.setAvatar(user.getAvatar());
             response.setContacts(user.getContacts());
             response.setUsername(user.getUsername());
             return ResponseEntity.status(HttpStatus.OK).body(response);
@@ -136,7 +136,12 @@ public class UserController {
         List<UserInfoForGroup> users = new ArrayList<>();
         for (Long userId : dto.getIds()){
                 User user = userService.findUserById(userId).orElseThrow();
-                users.add(UserInfoForGroup.builder().id(user.getId()).username(user.getUsername()).bio(user.getBio()).build());
+                users.add(UserInfoForGroup.builder()
+                        .id(user.getId())
+                        .username(user.getUsername())
+                        .bio(user.getBio())
+                        .avatar(user.getAvatar())
+                        .build());
         }
         return ResponseEntity.ok().body(users);
     }
@@ -160,6 +165,13 @@ public class UserController {
         }
 
         userService.changeUsername(Long.valueOf(changeUsernameDTO.getId()), changeUsernameDTO.getUsername());
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/change/avatar")
+    public ResponseEntity<?> changeUserAvatar(@RequestBody AvatarDTO dto){
+        userService.updateAvatar(dto.getUserId(), dto.getAvatar());
+
         return ResponseEntity.ok().build();
     }
 

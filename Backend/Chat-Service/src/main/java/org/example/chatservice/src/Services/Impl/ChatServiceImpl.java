@@ -46,6 +46,13 @@ public class ChatServiceImpl implements ChatServiceIntr {
         chatRepository.deleteById(chatid);
     }
 
+    public void updateGroupInfo(String title, String bio, Long id){
+        Chat chat = chatRepository.findById(id).orElseThrow();
+        chat.setTitle(title);
+        chat.setGroupbio(bio);
+        chatRepository.save(chat);
+    }
+
 
 
 }

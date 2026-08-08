@@ -2,6 +2,7 @@ package org.example.messageservice.src.JWT;
 
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
+import org.example.messageservice.src.Services.Impl.UsersOnlineStatusService;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -18,6 +19,7 @@ import java.util.Collections;
 public class JwtChannelInterceptor implements ChannelInterceptor {
 
     private final JwtCore jwtCore;
+    private final UsersOnlineStatusService userService;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -39,6 +41,8 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
                     Claims claims = jwtCore.getAllClaimsFromToken(token);
 
                     Long userId = Long.valueOf(claims.get("userId", String.class));
+
+                    userService.connect(userId);
 
                     JwtUser jwtUser = new JwtUser(String.valueOf(userId));
 

@@ -28,4 +28,7 @@ public class Chat {
 
     @Column(name = "c_groupbio")
     String groupbio;
+
+    @Column(name = "c_avatar")
+    String avatar;
 }

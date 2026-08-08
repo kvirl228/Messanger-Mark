@@ -45,24 +45,34 @@ public class MessageServiceImpl implements MessageServiceIntr {
         messageRepository.save(message);
     }
 
+    @Override
+    public Optional<Message> findFirstByChatidOrderBySendtimeDesc(Long chatid) {
+        return messageRepository.findFirstByChatidOrderBySendtimeDesc(chatid);
+    }
+
     public void startPrivateChat(StartPrivateChatDTO dto, Long senderId, String jwt) {
         System.out.println("is true");
         Long chatId = chatServiceClient.getOrCreatePrivateChat(senderId, dto.getRecipientId(), jwt);
         UserDTO user = userServiceClient.getUser(senderId, jwt);
 
         Optional<Message> message = messageRepository.findFirstByChatid(chatId);
-
+        boolean isFirst = false;
         if (message.isEmpty()){
+            isFirst = true;
             System.out.println("is true3");
             ChatRequestDTO chatRequestDTO1 = ChatRequestDTO.builder()
                     .chatId(chatId)
-                    .lastMessage(dto.getText())
                     .userId(senderId)
-                    .type("PRIVATE")
+                    .responseType("PRIVATE")
                     .title(user.getUsername())
                     .bio(user.getBio())
                     .issend(user.getIssend())
                     .build();
+            if (dto.getType().equals("IMG")){
+                chatRequestDTO1.setLastMessage("фото");
+            }else{
+                chatRequestDTO1.setLastMessage(dto.getText());
+            }
 
 
             messagingTemplate.convertAndSendToUser(
@@ -73,47 +83,72 @@ public class MessageServiceImpl implements MessageServiceIntr {
         }
 
 
-
-        send(chatId, senderId, dto.getText(), jwt);
+        System.out.println(dto.getType());
+        send(chatId, senderId,dto.getType(), dto.getText(), jwt, isFirst);
     }
 
     public void sendMessage(SendMessageDTO dto, Long senderId, String jwt) {
-        send(dto.getChatId(), senderId, dto.getText(), jwt);
+        send(dto.getChatId(), senderId,dto.getType(), dto.getText(), jwt, false);
     }
 
-    private void send(Long chatId, Long senderId, String text, String jwt) {
-        System.out.println("is true2");
+    private void send(Long chatId, Long senderId,String type, String text, String jwt, boolean isFirst) {
+        System.out.println(text);
         Message message = Message.builder()
                 .chatid(chatId)
                 .senderid(senderId)
-                .text(text)
-                .messagestatus(false)
+                .type(type)
                 .build();
+        if(type.equals("img")){
+            message.setText(null);
+            message.setImg(text);
+        }else{
+            message.setImg(null);
+            message.setText(text);
+        }
 
         Message savedMessage = messageRepository.save(message);
 
         List<Long> members = chatServiceClient.getMembers(chatId, jwt);
 
         MessageResponseDTO dto = MessageResponseDTO.builder()
-                .type("MESSAGE")
+                .responseType("MESSAGE")
+                .type(type)
                 .id(savedMessage.getId())
                 .chatId(savedMessage.getChatid())
                 .senderid(savedMessage.getSenderid())
-                .text(savedMessage.getText())
-//                .sendTime(savedMessage.getSendtime())
+                .sendtime(savedMessage.getSendtime())
                 .build();
-
+        System.out.println(dto);
+        ChatSendDTO chatDTO2 = new ChatSendDTO();
+        if(type.equals("img")){
+            chatDTO2.setLastMessage("img");
+            chatDTO2.setResponseType("MESSAGE");
+            chatDTO2.setSendtime(savedMessage.getSendtime());
+            chatDTO2.setChatId(savedMessage.getChatid());
+            dto.setText(savedMessage.getImg());
+        }else{
+            chatDTO2.setLastMessage(savedMessage.getText());
+            chatDTO2.setResponseType("MESSAGE");
+            chatDTO2.setSendtime(savedMessage.getSendtime());
+            chatDTO2.setChatId(savedMessage.getChatid());
+            dto.setText(savedMessage.getText());
+        }
+        System.out.println(dto);
+        System.out.println("готово");
         for (Long memberId : members) {
-
-            System.out.println("BEFORE SEND");
-
+            System.out.println("SEND TO USER: " + memberId);
             messagingTemplate.convertAndSendToUser(
                     memberId.toString(),
                     "/queue/messages",
                     dto
             );
+            System.out.println("MESSAGE EVENT SENT");
 
-            System.out.println("AFTER SEND");
+            messagingTemplate.convertAndSendToUser(
+                    memberId.toString(),
+                    "/queue/chats",
+                    chatDTO2
+            );
         }
     }
 
@@ -127,7 +162,7 @@ public class MessageServiceImpl implements MessageServiceIntr {
         messageRepository.save(message);
 //        Map<String, Object> response = new HashMap<>();
         MessageResponseDTO dto = MessageResponseDTO.builder()
-                .type("EDIT")
+                .responseType("EDIT")
                 .id(message.getId())
                 .senderid(message.getSenderid())
                 .chatId(message.getChatid())
@@ -154,7 +189,7 @@ public class MessageServiceImpl implements MessageServiceIntr {
         Long chatId = message.getChatid();
         messageRepository.deleteById(messageId);
         Map<String, Object> response = new HashMap<>();
-        response.put("type", "DELETE");
+        response.put("responseType", "DELETE");
         response.put("messageId", messageId);
         List<Long> members = chatServiceClient.getMembers(chatId, jwt);
         for (Long ids : members){

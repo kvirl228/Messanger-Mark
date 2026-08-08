@@ -13,4 +13,6 @@ public class SendMessageDTO {
 
     private String text;
 
+    private String type;
+
 }

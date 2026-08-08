@@ -13,4 +13,6 @@ public class StartPrivateChatDTO {
 
     private String text;
 
+    private String type;
+
 }

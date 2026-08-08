@@ -17,7 +17,7 @@ public class ChatRequestDTO {
     String title;
     Long userId;
     Long chatId;
-    String type;
+    String responseType;
     String bio;
     String issend;
     String lastMessage;

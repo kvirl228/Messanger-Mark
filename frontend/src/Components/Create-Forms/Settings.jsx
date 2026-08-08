@@ -7,14 +7,14 @@ import { useNavigate } from "react-router-dom"
 import { useUser } from "../context/UserContext";
 import WebSocketService from "../../Service/WebSocketService";
 import './Forms.css'
-import { auth_service, user_service } from "../../properties"
+import { auth_service, user_service, file_service } from "../../properties"
 
 function Settings(props) {
 
     const { user, setUser } = useUser();
 
-    const [name, setName] = useState(user.username)
-    const [userid, setuserId] = useState(user.userId)
+    const [name, setName] = useState(user?.username || "")
+    const [userid, setuserId] = useState(user?.userId || "")
 
     const [password, setPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
@@ -29,6 +29,7 @@ function Settings(props) {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [currentUser, setCurrentUser] = useState(null)
     const [image, setImage] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
 
     const [howCanWrite, setHowCanWrite] = useState("ALL")
     const [whoCanSee, setWhoCanSee] = useState("ALL")
@@ -79,51 +80,79 @@ function Settings(props) {
 
 
     const handleImageChange = (event) => {
-        setImage(event.target.files[0]);
+        const file = event.target.files[0];
+        if (!file) return;
+
+        setImage(file);
+        setPreviewUrl(URL.createObjectURL(file));
     };
 
     const uploadImage = async () => {
-        if (!image) return;
-        console.log(image)
+         if (!image) {
+            alert("Выберите изображение");
+            return;
+        }
+
+        setIsLoading(true);
 
         const data = new FormData();
         data.append("file", image);
-        data.append("upload_preset", "main_preset"); // your unsigned preset
-        data.append("cloud_name", "djrfj2vjf");
 
         try {
-            const res = await fetch(
-                "https://api.cloudinary.com/v1_1/djrfj2vjf/image/upload",
-                {
+            // 1. Отправляем в file-service
+            const response = await fetch(`${file_service}/api/files/upload`,{
                     method: "POST",
-                    body: data,
+                    body: data
                 }
             );
-            const file = await res.json();
-            console.log(file.secure_url);
-            setUrl(file.secure_url); // This is the uploaded image URL
-            sendToBackend(file.secure_url);
-        } catch (err) {
-            console.error("Upload error:", err);
+            if (!response.ok) {
+                throw new Error("Ошибка загрузки файла");
+            }
+
+
+            const fileData = await response.json();
+            console.log("FILE URL:", fileData.url);
+            // 2. Сохраняем URL в user-service
+            await sendToBackend(fileData.url);
+            // 3. Обновляем локального пользователя
+            setUser(prev => ({
+                ...prev,
+                avatar: fileData.url
+            }));
+            setUrl(fileData.url);
+            alert("Аватар изменён");
+        } catch(error) {
+
+            console.error(error);
+            alert("Ошибка загрузки аватара");
+
+        } finally {
+            setIsLoading(false);
         }
     };
     
     const sendToBackend = async (imageUrl) => {
         try {
-            const response = await fetch("http://localhost:8080/api/users/avatar", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    id: userid,
-                    avatar: imageUrl
-                }),
-            });
-            console.log(userid);
-            console.log(imageUrl);
-            alert("Ссылка отправлена на backend!");
-        } catch (err) {
-            console.error("Ошибка отправки:", err);
-        }
+
+            const response = await fetch(
+                `${user_service}/api/users/change/avatar`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${localStorage.getItem("token")}`
+                    },
+                    body: JSON.stringify({
+                        userId: userid,
+                        avatar: imageUrl
+                    })
+                }
+            );
+            if (!response.ok) {
+                throw new Error("Ошибка сохранения аватара");
+            }
+            console.log("Avatar saved");
+        } catch(error) {  console.error(error);}
     };
 
     const togglePasswordVisibility = (field) => {
@@ -394,7 +423,9 @@ function Settings(props) {
                                     tabIndex={0}
                                     onKeyDown={(e) => { if (e.key === 'Enter') document.getElementById('avatarInput')?.click(); }}
                                 >
-                                    {url ? (
+                                    {previewUrl ? (
+                                        <img src={previewUrl} alt="preview" />
+                                    ) : url ? (
                                         <img src={url} alt="preview" />
                                     ) : user?.avatar ? (
                                         <img src={user.avatar} alt="avatar" />

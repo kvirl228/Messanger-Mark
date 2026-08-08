@@ -2,21 +2,21 @@ package org.example.userservice.src.Servicies.Impl;
 
 import lombok.AllArgsConstructor;
 import org.example.userservice.src.DTO.ContactResponseDTO;
-import org.example.userservice.src.DTO.SettingsDTO;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.example.userservice.src.DTO.Change.SettingsDTO;
 import org.springframework.stereotype.Service;
 import org.example.userservice.src.Entities.User;
 import org.example.userservice.src.Repositories.UserRepository;
 import org.example.userservice.src.Servicies.UserServiceIntr;
 
-import java.io.Console;
 import java.util.*;
 
 @Service
 @AllArgsConstructor
 public class UserServiceImpl implements UserServiceIntr {
 
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
+
+    private final EventService eventService;
 
     @Override
     public List<User> findAllUsers() {
@@ -45,6 +45,7 @@ public class UserServiceImpl implements UserServiceIntr {
                 ContactResponseDTO response = new ContactResponseDTO();
                 response.setContactId(contact);
                 response.setUsername(userRepository.findById(contact).get().getUsername());
+                response.setAvatar(userRepository.findById(contact).get().getAvatar());
                 dto.add(response);
             }
             return dto;
@@ -104,5 +105,12 @@ public class UserServiceImpl implements UserServiceIntr {
     @Override
     public void deleteUserById(Long id) {
         userRepository.deleteById(id);
+    }
+
+    public void updateAvatar(Long userId, String avatar){
+        User user = userRepository.findById(userId).orElseThrow();
+        user.setAvatar(avatar);
+        eventService.avatarChanged(user.getId(), user.getAvatar());
+        userRepository.save(user);
     }
 }

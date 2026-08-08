@@ -13,4 +13,5 @@ public interface MessageRepository extends JpaRepository<Message,Long> {
     void deleteAllByChatid(Long chatid);
 
     Optional<Message> findFirstByChatid(Long chatId);
+    Optional<Message> findFirstByChatidOrderBySendtimeDesc(Long chatid);
 }

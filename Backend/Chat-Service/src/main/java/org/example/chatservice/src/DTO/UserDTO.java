@@ -11,6 +11,7 @@ public class UserDTO {
 
     String username;
     String bio;
+    String avatar;
     String issend;
 
 }

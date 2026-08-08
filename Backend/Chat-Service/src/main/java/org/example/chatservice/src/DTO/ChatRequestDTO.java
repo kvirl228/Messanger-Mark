@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -18,7 +19,10 @@ public class ChatRequestDTO {
     String type;
     String bio;
     String issend;
+    String avatar;
     String lastMessage;
+    LocalDateTime sendtime;
     LocalDate lastMessageSend;
+    int counter;
 
 }

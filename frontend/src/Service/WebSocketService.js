@@ -12,6 +12,7 @@ class WebSocketService {
 
         this.listeners = [];
         this.chatListeners = [];
+        this.avatarListeners = [];
 
         this.tokenTimer = null;
     }
@@ -80,6 +81,14 @@ class WebSocketService {
             }
         );
 
+        this.avatarSubscription = this.client.subscribe(
+            "/topic/avatar",
+            message => {
+                const event = JSON.parse(message.body);
+                this.avatarListeners.forEach(listener => listener(event));
+            }
+        );
+
         console.log("Подписки созданы");
     }
 
@@ -98,6 +107,14 @@ class WebSocketService {
     removeChatListener(listener) {
         this.chatListeners =
             this.chatListeners.filter(l => l !== listener);
+    }
+    addAvatarListener(listener) {
+        this.avatarListeners.push(listener);
+    }
+
+    removeAvatarListener(listener) {
+        this.avatarListeners =
+            this.avatarListeners.filter(l => l !== listener);
     }
 
     send(destination, body) {

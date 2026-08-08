@@ -11,6 +11,8 @@ public class UserRequestChatDTO {
 
     String username;
     String bio;
+    String avatar;
     String issend;
+
 
 }

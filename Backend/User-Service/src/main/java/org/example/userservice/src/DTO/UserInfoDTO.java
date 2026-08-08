@@ -12,5 +12,6 @@ public class UserInfoDTO {
     Long userId;
     List<Long> contacts;
     String username;
+    String avatar;
 
 }

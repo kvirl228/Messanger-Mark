@@ -1,11 +1,13 @@
-import { useEffect, useState, useMemo } from "react";
-import { auth_service,message_service, chat_service, user_service } from '../../properties';
+import { useEffect, useState, useRef } from "react";
+import { auth_service,message_service, chat_service, user_service, file_service } from '../../properties';
 import './Chat.css';
 import { useUser } from "../context/UserContext";
+import { useNavigate } from 'react-router-dom';
 import WebSocketService from "../../Service/WebSocketService";
 
-function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
+function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar, onExit }) {
   const { user, setUser } = useUser();
+  const navigate = useNavigate()
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isClick, setIsClick] = useState(true)
@@ -13,38 +15,75 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
   const [image, setImage] = useState(null);
   const [showMembersPopup, setShowMembersPopup] = useState(false);
   const [groupMembers, setGroupMembers] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [selectedContactIds, setSelectedContactIds] = useState([]);
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [url, setUrl] = useState('');
   const [userId, setUserId] = useState(user.userId);
   const [avatarPreview, setAvatarPreview] = useState(groupAvatar || null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadFeedback, setUploadFeedback] = useState('');
+  const [groupDescriptionText, setGroupDescriptionText] = useState(bio || '');
+  const [groupTitle, setGroupTitle] = useState(groupName || '');
   
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState('');
   const [creatorId, setCreatorId] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState(null);
+  const [pendingPreview, setPendingPreview] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const fileInputRef = useRef(null);
   
 
   const handleImageChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      alert('Пожалуйста, выберите изображение');
+      event.target.value = '';
+      return;
+    }
+
+    if (avatarPreview && avatarPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+
     setImage(file);
     setAvatarPreview(URL.createObjectURL(file));
     setUploadFeedback('');
   };
 
-  function mergeMessagesWithUsers(messages, users) {
-    const usersMap = new Map(
-        users.map(user => [user.id, user])
-    );
+  function mergeMessagesWithUsers(messages, users, currentUserId) {
+    
+    const usersMap = new Map();
 
-    return messages.map(message => ({
-        ...message,
-        username: usersMap.get(message.senderid)?.username ?? "Неизвестный",
-        avatar: usersMap.get(message.senderid)?.avatar ?? null,
-        bio: usersMap.get(message.senderid)?.bio ?? ""
-    }));
+    users.forEach(user => {
+        usersMap.set(Number(user.id), user);
+    });
+
+    return messages.map(message => {
+
+        const senderId = Number(message.senderid);
+
+        // Если сообщение моё
+        if (senderId === Number(currentUserId)) {
+            return {
+                ...message,
+                username: null
+            };
+        }
+
+        // Если сообщение чужое
+        const user = usersMap.get(senderId);
+
+        return {
+            ...message,
+            username: user ? user.username : ""
+        };
+    });
 }
 
   const refreshToken = async () => {
@@ -66,12 +105,92 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
     }
   }
 
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAttachmentChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Пожалуйста, выберите изображение");
+      event.target.value = "";
+      return;
+    }
+
+    if (pendingPreview) {
+      URL.revokeObjectURL(pendingPreview);
+    }
+
+    setPendingAttachment(file);
+    setPendingPreview(URL.createObjectURL(file));
+    setInputText("");
+    event.target.value = "";
+  };
+
+  const clearPendingAttachment = () => {
+    if (pendingPreview) {
+      URL.revokeObjectURL(pendingPreview);
+    }
+    setPendingAttachment(null);
+    setPendingPreview(null);
+  };
+
+  const openImagePreview = (imageUrl) => {
+    setSelectedImage(imageUrl);
+  };
+
+  const closeImagePreview = () => {
+    setSelectedImage(null);
+  };
+
+  const sendImageMessage = async (imageUrl) => {
+    const payload = {
+      chatId: groupId,
+      text: imageUrl,
+      type: "img"
+    };
+
+    WebSocketService.send("/app/chat.send", payload);
+  };
+
+  const sendPendingAttachment = async () => {
+    if (!pendingAttachment) return;
+
+    setIsUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", pendingAttachment);
+
+      const response = await fetch(`${file_service}/api/files/upload`, {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error("Ошибка загрузки файла");
+      }
+
+      const fileData = await response.json();
+      await sendImageMessage(fileData.url);
+      clearPendingAttachment();
+    } catch (error) {
+      console.error("Ошибка отправки фото:", error);
+      alert("Не удалось отправить фотографию");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (inputText.trim() === "") return;
     console.log(groupId);
      WebSocketService.send("/app/chat.send", {
         chatId: groupId,
-        text: inputText
+        text: inputText,
+        type:"text"
       });
     setInputText('')
   }
@@ -92,9 +211,9 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
       setEditingMessageId(null);
       setEditingText('');
     }
-  const exitGroup = async (memberId) => {
+  const exitGroup = async () => {
     try {
-      const response = await fetch(`http://localhost:8080/api/groups/${groupId}/members/${memberId}`, {
+      const response = await fetch(`${chat_service}/api/chats/${groupId}/exit/${user.userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem("token")}`,
@@ -103,9 +222,7 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
       });
 
       if (response.ok) {
-        setGroupMembers(prev => prev.filter(member => member.id !== memberId));
-        alert("Участник удален из группы");
-        window.location.reload();
+        onExit(); // Вызов функции обратного вызова для выхода из группы
       } else {
         alert("Ошибка при удалении участника");
       }
@@ -121,7 +238,7 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
       return;
     }
       try {
-        const response = await fetch(`http://localhost:8080/api/groups/${groupId}/members/${memberId}`, {
+        const response = await fetch(`${chat_service}/api/chats/delete/${groupId}/${memberId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem("token")}`,
@@ -132,7 +249,6 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
         if (response.ok) {
           setGroupMembers(prev => prev.filter(member => member.id !== memberId));
           alert("Участник удален из группы");
-          window.location.reload();
         } else {
           alert("Ошибка при удалении участника");
         }
@@ -157,7 +273,7 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
         if (response.ok) {
             const members = await response.json();
             setGroupMembers(members);
-            return members;          // ← добавить
+            return members;
         }
 
         return [];
@@ -165,6 +281,70 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
         console.error(error);
         return [];
     }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      const response = await fetch(`${user_service}/api/users/contacts/names/${localStorage.getItem("token")}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const allContacts = Array.isArray(data) ? data : [data];
+        const normalized = allContacts.map(contact => ({
+          ...contact,
+          id: contact.id ?? contact.contactId
+        }));
+        setContacts(normalized);
+        return normalized;
+      }
+    } catch (error) {
+      console.error('Ошибка при получении контактов:', error);
+    }
+    return [];
+  };
+
+  const toggleContactSelection = (contactId) => {
+    setSelectedContactIds(prev =>
+      prev.includes(contactId)
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    );
+  };
+
+  const addContactsToGroup = async () => {
+    if (!isAdmin || selectedContactIds.length === 0) return;
+
+    try {
+      const response = await fetch(`${chat_service}/api/chats/${groupId}/members/add`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ memberIds: selectedContactIds })
+      });
+
+      if (response.ok) {
+        const addedMembers = contacts.filter(contact => selectedContactIds.includes(contact.id));
+        setGroupMembers(prev => [...prev, ...addedMembers]);
+        setSelectedContactIds([]);
+        alert('Участники добавлены');
+      } else {
+        alert('Не удалось добавить участников');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Ошибка при добавлении участников');
+    }
+  };
+
+  const handleContactSearch = (event) => {
+    setContactSearchQuery(event.target.value);
   };
   const getMessages = async () => {
     try {
@@ -226,38 +406,54 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
     }
   };
 
-  
-
   const click = (clicker, id) => {
     setIsClick(clicker)
     setDeleteId(id)
   }
 
-  
-
   const sendToBackend = async (imageUrl) => {
-    try {
-      const response = await fetch("http://localhost:8080/api/groups/avatar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: userId,
-          groupId: groupId,
-          avatar: imageUrl
-        }),
-      });
+    const candidateEndpoints = [
+      `${chat_service}/api/chats/avatar`,
+      `${chat_service}/api/chats/${groupId}/avatar`,
+      `${chat_service}/api/chats/group/avatar`,
+      `${chat_service}/api/chats/update/avatar`,
+      `${chat_service}/api/chats/${groupId}/update-avatar`,
+      `${chat_service}/api/chats/${groupId}/update/avatar`
+    ];
 
-      if (response.ok) {
-        setUrl(imageUrl);
-        setAvatarPreview(imageUrl);
-        setUploadFeedback("Аватарка успешно обновлена");
-      } else {
-        setUploadFeedback("Не удалось сохранить аватарку");
+    const payloads = [
+      { groupId, avatar: imageUrl },
+      { id: userId, groupId, avatar: imageUrl },
+      { chatId: groupId, avatar: imageUrl },
+      { id: groupId, avatar: imageUrl }
+    ];
+
+    for (const endpoint of candidateEndpoints) {
+      for (const payload of payloads) {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem("token")}`
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (response.ok) {
+            setUrl(imageUrl);
+            setAvatarPreview(imageUrl);
+            setUploadFeedback("Аватарка успешно обновлена");
+            return true;
+          }
+        } catch (err) {
+          console.error(`Ошибка запроса к ${endpoint}:`, err);
+        }
       }
-    } catch (err) {
-      console.error("Ошибка отправки:", err);
-      setUploadFeedback("Ошибка при обновлении аватарки");
     }
+
+    setUploadFeedback("Не удалось сохранить аватарку");
+    return false;
   };
   
   const uploadImage = async () => {
@@ -269,22 +465,22 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
     setUploadingAvatar(true);
     setUploadFeedback('');
 
-    const data = new FormData();
-    data.append("file", image);
-    data.append("upload_preset", "main_preset");
-    data.append("cloud_name", "djrfj2vjf");
-
     try {
-      const res = await fetch(
-        "https://api.cloudinary.com/v1_1/djrfj2vjf/image/upload",
-        {
-          method: "POST",
-          body: data,
-        }
-      );
-      const file = await res.json();
-      setUrl(file.secure_url);
-      await sendToBackend(file.secure_url);
+      const formData = new FormData();
+      formData.append("file", image);
+
+      const response = await fetch(`${file_service}/api/files/upload`, {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error("Ошибка загрузки файла");
+      }
+
+      const fileData = await response.json();
+      setUrl(fileData.url);
+      await sendToBackend(fileData.url);
     } catch (err) {
       console.error("Upload error:", err);
       setUploadFeedback("Ошибка загрузки изображения");
@@ -292,12 +488,13 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
       setUploadingAvatar(false);
     }
   };
-
-  
-
   const closeMembersPopup = () => {
     setShowMembersPopup(false);
   }
+
+  useEffect(() => {
+    setAvatarPreview(groupAvatar || null);
+  }, [groupAvatar]);
 
   useEffect(() => {
     getCreatorId()
@@ -305,9 +502,10 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
     const loadData = async () => {
         const members = await getMembers();
         const messages = await getMessages();
+        await fetchContacts();
 
         setGroupMembers(members);
-        setMessages(mergeMessagesWithUsers(messages, members));
+        setMessages(mergeMessagesWithUsers(messages, members, userId));
     };
 
     loadData();
@@ -317,11 +515,11 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
       // if (message.chatId === groupId) {
       //   setMessages(prevMessages => [...prevMessages, message]);
       // }
-      if (message.type === "DELETE") {
+      if (message.responseType === "DELETE") {
           setMessages(prev => prev.filter(m => m.id !== message.messageId));
         return;
       }
-      if (message.type === "EDIT") {
+      if (message.responseType === "EDIT") {
         console.log("Editing message:", message.id, message.text);
         setMessages(prev =>
             prev.map(m =>
@@ -332,7 +530,7 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
         );
         return;
       }
-      if (message.type === "MESSAGE") {
+      if (message.responseType === "MESSAGE") {
         if (message.chatId !== groupId && groupId !== null) {
           return;
         }
@@ -347,12 +545,12 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
 
   return (
     <div className="chat-container">
-      {/* <button onClick={() => console.log(isAdmin)}>show</button> */}
+      {/* <button onClick={() => console.log(messages)}>show</button> */}
       <div className="chat-header">
         <div className="chat-header-info" onClick={() => setShowMembersPopup(true)}>
           <div className="chat-user-avatar">
-            {groupAvatar != null ? (
-              <img src={groupAvatar} alt="Group Avatar" />
+            {avatarPreview ? (
+              <img src={avatarPreview} alt="Group Avatar" />
             ) : (
               <span className="avatar-placeholder">👥</span>
             )}
@@ -381,9 +579,16 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
           </div>
         ) : (
           <div className="messages-list">
-            {messages.map((msg, index) => (
+            {messages.map((msg, index) => {
+              const messageType = String(msg?.type || 'text').toLowerCase();
+              const imageUrl = messageType === 'img'
+                ? (msg?.text || msg?.img || msg?.imageUrl || msg?.image || msg?.fileUrl || msg?.url || null)
+                : null;
+              const textContent = messageType === 'text' ? (msg?.text ?? '') : '';
+
+              return (
               <div
-                key={`${msg.timestamp}-${index}`}
+                key={`${msg.sendtime}-${index}`}
                 className={`message-wrapper ${msg.senderid === userId ? 'my_message' : 'their_message'}`}
               >
                 <div className="message-bubble">
@@ -418,12 +623,18 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
                     <>
                       {msg.senderId !== userId && (
                         <div className="message-sender">
-                          {msg.username  }
+                          {msg.username }
                         </div>
                       )}
-                      <div className="message-content">{msg.text}</div>
+                      {imageUrl ? (
+                        <div className="message-image-wrapper" onClick={() => openImagePreview(imageUrl)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openImagePreview(imageUrl); } }}>
+                          <img src={imageUrl} alt="Attachment" className="message-image" />
+                        </div>
+                      ) : (
+                        <div className="message-content">{textContent}</div>
+                      )}
                       <div className="message-time">
-                        {new Date(msg.timestamp).toLocaleTimeString('ru-RU', {
+                        {new Date(msg.sendtime).toLocaleTimeString('ru-RU', {
                           hour: '2-digit',
                           minute: '2-digit'
                         })}
@@ -433,7 +644,7 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
                           {msg.read ? '✓✓' : '✓'}
                         </div>
                       )}
-                      {msg.senderId !== userId && (
+                      {msg.senderid === userId && (
                         <div className="message-actions">
                           <button 
                             className="message-action-btn edit-btn"
@@ -455,47 +666,96 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {isClick ? (
-        <div className="chat-input-panel">
-          <div className="input-container">
-            <button className="attachment-btn" title="Прикрепить файл">
-              <span className="attachment-icon">📎</span>
-            </button>
-            <div className="input-wrapper">
-              <input
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Введите сообщение..."
-                className="chat-input"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage()
-                    // if (inputText.trim()) {
-                    //   sendMessage();
-                    // }
-                  }
-                }}
-              />
-              <button className="emoji-btn" title="Эмодзи" onClick={(e) => {e.preventDefault(); sendToBackend("https://res.cloudinary.com/djrfj2vjf/image/upload/v1755623535/patq56fzs6smnqxugejl.jpg");}}>
-                <span className="emoji-icon">😊</span>
-              </button>
-            </div>
-            <button
-              className="send-btn"
-              onClick={sendMessage}
-              // disabled={!inputText.trim()}
-              title="Отправить"
-            >
-              <span className="send-icon">📤</span>
-            </button>
+      {selectedImage && (
+        <div className="image-preview-overlay" onClick={closeImagePreview}>
+          <div className="image-preview-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="image-preview-close" onClick={closeImagePreview} title="Закрыть">✕</button>
+            <img src={selectedImage} alt="Full preview" className="image-preview-full" />
           </div>
         </div>
+      )}
+
+      {isClick ? (
+        pendingAttachment ? (
+          <div className="chat-input-panel">
+            <div className="attachment-preview-panel">
+              <div className="attachment-preview-card">
+                {pendingPreview && <img src={pendingPreview} alt="preview" className="attachment-preview-image" />}
+                <div className="attachment-preview-info">
+                  <div className="attachment-preview-name">{pendingAttachment.name}</div>
+                  <div className="attachment-preview-hint">Фото готово к отправке</div>
+                </div>
+              </div>
+              <div className="attachment-preview-actions">
+                <button className="cancel-btn" onClick={clearPendingAttachment}>
+                  ✕ Отмена
+                </button>
+                <button
+                  className="send-btn"
+                  onClick={sendPendingAttachment}
+                  disabled={isUploadingImage}
+                  title="Отправить фото"
+                >
+                  {isUploadingImage ? '⏳' : '📤'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="chat-input-panel">
+            <div className="input-container">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAttachmentChange}
+              />
+              <button
+                className="attachment-btn"
+                title="Прикрепить файл"
+                onClick={handleAttachmentClick}
+                disabled={isUploadingImage}
+              >
+                <span className="attachment-icon">📎</span>
+              </button>
+              <div className="input-wrapper">
+                <input
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Введите сообщение..."
+                  className="chat-input"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage()
+                      // if (inputText.trim()) {
+                      //   sendMessage();
+                      // }
+                    }
+                  }}
+                />
+                <button className="emoji-btn" title="Эмодзи" onClick={(e) => {e.preventDefault(); sendToBackend("https://res.cloudinary.com/djrfj2vjf/image/upload/v1755623535/patq56fzs6smnqxugejl.jpg");}}>
+                  <span className="emoji-icon">😊</span>
+                </button>
+              </div>
+              <button
+                className="send-btn"
+                onClick={sendMessage}
+                // disabled={!inputText.trim()}
+                title="Отправить"
+              >
+                <span className="send-icon">📤</span>
+              </button>
+            </div>
+          </div>
+        )
       ) : (
         <div className="delete-panel">
           {editingMessageId ? (
@@ -598,10 +858,78 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
             <div className="group-user-popup-content">
               <div className="group-description-card">
                 <div className="group-description-card__title">Описание группы</div>
-                <p className="group-description-card__text">
-                  {bio?.trim() ? bio : 'Описание пока не добавлено'}
-                </p>
+                {isAdmin ? (
+                  <p className="group-description-card__text group-description-card__text--editable">
+                    {groupDescriptionText?.trim() ? groupDescriptionText : 'Описание пока не добавлено'}
+                  </p>
+                ) : (
+                  <p className="group-description-card__text">
+                    {groupDescriptionText?.trim() ? groupDescriptionText : 'Описание пока не добавлено'}
+                  </p>
+                )}
               </div>
+
+              {isAdmin && (
+                <div className="group-contacts-section">
+                  <div className="group-contacts-header">
+                    <h4>Добавить участника</h4>
+                    <span className="group-contacts-sub">Из контактов</span>
+                  </div>
+                  <div className="contacts-search-container">
+                    <input
+                      className="contacts-search-input"
+                      value={contactSearchQuery}
+                      onChange={handleContactSearch}
+                      placeholder="Поиск контактов..."
+                    />
+                    <span className="search-icon">🔍</span>
+                  </div>
+                  <div className="group-contacts-list">
+                    {contacts.filter(contact =>
+                      contact.username.toLowerCase().includes(contactSearchQuery.toLowerCase()) &&
+                      !groupMembers.some(member => member.userId === contact.userId)
+                    ).map(contact => (
+                      <div
+                        key={contact.id}
+                        className={`group-contact-item ${selectedContactIds.includes(contact.id) ? 'selected' : ''}`}
+                        onClick={() => toggleContactSelection(contact.id)}
+                      >
+                        <div className="group-contact-info">
+                          <div className="group-contact-avatar">
+                            {groupAvatar ? (
+                              <img src={groupAvatar} alt="Avatar" />
+                            ) : (
+                              <span className="member-avatar-placeholder">👤</span>
+                            )}
+                          </div>
+                          <div>
+                            <div className="group-contact-name">{contact.username}</div>
+                            <div className="group-contact-status">
+                              {contact.online ? '🟢 В сети' : '⚪ Не в сети'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="group-contact-checkbox">
+                          {selectedContactIds.includes(contact.id) ? '✓' : ''}
+                        </div>
+                      </div>
+                    ))}
+                    {contacts.filter(contact =>
+                      contact.username.toLowerCase().includes(contactSearchQuery.toLowerCase()) &&
+                      !groupMembers.some(member => member.id === contact.id)
+                    ).length === 0 && (
+                      <div className="group-contacts-empty">Нету доступных контактов для добавления</div>
+                    )}
+                  </div>
+                  <button
+                    className="group-add-btn"
+                    onClick={addContactsToGroup}
+                    disabled={selectedContactIds.length === 0}
+                  >
+                    Добавить в группу ({selectedContactIds.length})
+                  </button>
+                </div>
+              )}
 
               <div className="avatar-upload-card">
                 <div className="avatar-upload-card__header">
@@ -659,7 +987,8 @@ function GroupChat({ usersIds ,groupId, groupName,bio, groupAvatar }) {
                         {member.id === userId && <span className="member-you">(Вы)</span>}
                       </div>
                     </div>
-                    {isAdmin && member.id == userId && (
+                    {console.log(member)}
+                    {isAdmin && member.id !== userId && (
                       <button 
                         className="remove-member-btn"
                         onClick={() => removeMember(member.id)}

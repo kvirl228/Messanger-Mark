@@ -9,6 +9,7 @@ import org.example.chatservice.src.Services.ChatMembersServiceIntr;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @AllArgsConstructor
@@ -43,6 +44,21 @@ public class ChatMembersServiceImpl implements ChatMembersServiceIntr {
         }
     }
 
+    public void deleteChatMemberByUserId(Long id){
+        chatMembersRepository.deleteById(id);
+    }
+
+    public void deleteGroupMember(Long groupId, Long userId){
+        List<ChatMembers> members = chatMembersRepository.findChatMembersByChatid(groupId);
+        ChatMembers member = new ChatMembers();
+        for(ChatMembers c : members){
+            if(c.getUserid().equals(userId)){
+                member = c;
+            }
+        }
+        chatMembersRepository.delete(member);
+    }
+
     @Override
     public void save(Long chatId, String role, Long userId) {
         ChatMembers chatMembers = new ChatMembers();
@@ -67,7 +83,7 @@ public class ChatMembersServiceImpl implements ChatMembersServiceIntr {
             }
         }
 
-        if (chatId == null) {
+        if (chatId == null ) {
             System.out.println("Чат не найден. Создаём новый...");
             Chat  chat = new Chat();
             chat.setType("PRIVATE");
@@ -85,7 +101,30 @@ public class ChatMembersServiceImpl implements ChatMembersServiceIntr {
             chatMembersRepository.save(chatMembers);
             chatMembersRepository.save(chatMembers2);
             return id;
+        }else{
+            Chat chat1 = chatServiceImpl.findChatByChatid(chatId).orElseThrow();
+            if(chat1.getType().equals("GROUP")){
+                Chat chat = new Chat();
+                chat.setType("PRIVATE");
+                Long id = chatServiceImpl.savePrivateChat(chat);
+                System.out.println(id);
+                ChatMembers chatMembers = new ChatMembers();
+                chatMembers.setUserid(userid);
+                chatMembers.setRole("USER");
+                chatMembers.setChatid(id);
+
+                ChatMembers chatMembers2 = new ChatMembers();
+                chatMembers2.setUserid(senderId);
+                chatMembers2.setRole("USER");
+                chatMembers2.setChatid(id);
+                chatMembersRepository.save(chatMembers);
+                chatMembersRepository.save(chatMembers2);
+                return id;
+            }
+            else{
+                return chatId;
+            }
         }
-        return chatId;
+//        return chatId;
     }
 }

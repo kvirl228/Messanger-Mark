@@ -1,4 +1,4 @@
-package org.example.userservice.src.DTO;
+package org.example.userservice.src.DTO.Change;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

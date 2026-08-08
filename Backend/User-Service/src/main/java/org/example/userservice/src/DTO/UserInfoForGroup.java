@@ -14,4 +14,5 @@ public class UserInfoForGroup {
     Long id;
     String username;
     String bio;
+    String avatar;
 }

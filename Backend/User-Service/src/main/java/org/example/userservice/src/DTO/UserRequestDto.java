@@ -11,4 +11,5 @@ public class UserRequestDto {
     Long id;
     String username;
     String bio;
+    String avatar;
 }

@@ -164,7 +164,13 @@ function ContactsList(){
                         {filtered.map((contact) => (
                             <li key={contact.contactId} className="contacts-item">
                                 <div className="contact-left">
-                                    <div className="contact-avatar">{initials(contact.username)}</div>
+                                    <div className="contact-avatar">
+                                        {contact.avatar ? (
+                                            <img src={contact.avatar} alt={contact.username || 'Avatar'} />
+                                        ) : (
+                                            <span>{initials(contact.username)}</span>
+                                        )}
+                                    </div>
                                     <div className="contact-name">{contact.username}</div>
                                 </div>
                                 <div className="contact-actions">

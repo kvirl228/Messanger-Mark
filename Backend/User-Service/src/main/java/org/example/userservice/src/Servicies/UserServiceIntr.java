@@ -1,6 +1,6 @@
 package org.example.userservice.src.Servicies;
 
-import org.example.userservice.src.DTO.SettingsDTO;
+import org.example.userservice.src.DTO.Change.SettingsDTO;
 import org.example.userservice.src.Entities.User;
 
 import java.util.List;

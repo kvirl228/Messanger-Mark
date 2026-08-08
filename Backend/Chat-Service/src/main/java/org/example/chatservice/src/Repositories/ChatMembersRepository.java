@@ -15,4 +15,5 @@ public interface ChatMembersRepository extends JpaRepository<ChatMembers,Long> {
     // Поиск чатов в которых состоит юзер по userid
     List<ChatMembers> findChatMembersByUserid(Long userid);
 
+    void deleteByUserid(Long userid);
 }

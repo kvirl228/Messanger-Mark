@@ -1,7 +1,9 @@
 package org.example.chatservice.src.Controllers;
 
+import io.jsonwebtoken.Claims;
 import lombok.AllArgsConstructor;
 import org.example.chatservice.src.DTO.*;
+import org.example.chatservice.src.JWT.JwtCore;
 import org.example.chatservice.src.Services.Impl.MessageServiceClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +16,7 @@ import org.example.chatservice.src.Services.Impl.UserServiceClient;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/chats")
@@ -22,6 +25,7 @@ import java.util.List;
 public class ChatController {
 
     private ChatServiceImpl chatServiceImpl;
+    private final JwtCore jwtCore;
     private ChatMembersServiceImpl chatMembersServiceImpl;
     private UserServiceClient userServiceClient;
     private final MessageServiceClient messageServiceClient;
@@ -47,6 +51,7 @@ public class ChatController {
         chat.setType("GROUP");
         chat.setGroupbio(groupCreateDTO.getBio());
         chat.setTitle(groupCreateDTO.getTitle());
+        chat.setAvatar(groupCreateDTO.getAvatar());
 
         if (groupCreateDTO.getMemberIds().isEmpty() || groupCreateDTO.getOwnerId()==null){
             return ResponseEntity.badRequest().build();
@@ -65,7 +70,6 @@ public class ChatController {
     public ResponseEntity<List<ChatRequestDTO>> findAllChats(@PathVariable String id, @RequestHeader("Authorization") String jwt) {
         try {
             List<ChatMembers> chatMembers = chatMembersServiceImpl.findChatMembersByUserid(Long.valueOf(id));
-            System.out.println("gogog");
             if  (chatMembers.isEmpty()){
                 return ResponseEntity.notFound().build();
             }
@@ -86,12 +90,32 @@ public class ChatController {
                     for (ChatMembers memberId : memberIds) {
                         userIds.add(memberId.getUserid());
                     }
-                    c1.setUserId(userIds);
-                    c1.setTitle(c.getTitle());
-                    c1.setBio(c.getGroupbio());
-                    c1.setType(c.getType());
-                    System.out.println(c1);
-                    chats.add(c1);
+                    MessageResponseDTO lastMsg = messageServiceClient.getLastMessage(c.getId(), jwt);
+                    if (lastMsg != null){
+                        if (lastMsg.getType().equals("IMG")){
+                            c1.setLastMessage("img");
+                            c1.setSendtime(lastMsg.getSendtime());
+                        }else{
+                            c1.setLastMessage(lastMsg.getLastMessage());
+                            c1.setSendtime(lastMsg.getSendtime());
+                        }
+                        c1.setUserId(userIds);
+                        c1.setTitle(c.getTitle());
+                        c1.setBio(c.getGroupbio());
+                        c1.setType(c.getType());
+                        c1.setAvatar(c.getAvatar());
+                        System.out.println(c1);
+                        chats.add(c1);
+                    }else {
+                        c1.setUserId(userIds);
+                        c1.setTitle(c.getTitle());
+                        c1.setBio(c.getGroupbio());
+                        c1.setType(c.getType());
+                        System.out.println(c1);
+                        c1.setAvatar(c.getAvatar());
+                        chats.add(c1);
+                    }
+
                 }
             }
 
@@ -104,19 +128,28 @@ public class ChatController {
                     }
                 }
             }
+            System.out.println(privateListMembers);
 //            List<ChatRequestDTO> chats = new ArrayList<>();
             for (ChatMembers chatMembers1 : privateListMembers) {
                 ChatRequestDTO chatRequestDTO = new ChatRequestDTO();
                 chatRequestDTO.setChatId(chatMembers1.getChatid());
                 chatRequestDTO.setUserId(Collections.singletonList(chatMembers1.getUserid()));
-                UserDTO userDTO = userServiceClient.getUser(
-                        chatMembers1.getUserid(),
-                        jwt
-                );
-
+                UserDTO userDTO = userServiceClient.getUser(chatMembers1.getUserid(), jwt);
                 chatRequestDTO.setTitle(userDTO.getUsername());
                 chatRequestDTO.setBio(userDTO.getBio());
+                chatRequestDTO.setAvatar(userDTO.getAvatar());
+                System.out.println("qq");
+                MessageResponseDTO lastMsg = messageServiceClient.getLastMessage(chatMembers1.getChatid(), jwt);
+                System.out.println(lastMsg);
+                if (lastMsg.getType().equals("img")){
+                    chatRequestDTO.setLastMessage("img");
+                }else{
+                    chatRequestDTO.setLastMessage(lastMsg.getLastMessage());
+                }
+                System.out.println("bb");
+                chatRequestDTO.setSendtime(lastMsg.getSendtime());
                 chatRequestDTO.setType("PRIVATE");
+                System.out.println("safsdafvds");
                 chats.add(chatRequestDTO);
             }
 
@@ -124,7 +157,7 @@ public class ChatController {
 
             return ResponseEntity.ok().body(chats);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.internalServerError().build();
         }
 
 
@@ -190,6 +223,40 @@ public class ChatController {
     public ResponseEntity<Long> getOrCreatePrivateChat(@RequestBody ChatCreateDTO chatCreateDTO) {
         Long chatId = chatMembersServiceImpl.findChatBetweenUsers(chatCreateDTO.getRecipientId(), chatCreateDTO.getSenderId());
         return ResponseEntity.ok().body(chatId);
+    }
+
+    @PatchMapping("/edit/group/{groupId}")
+    public ResponseEntity<?> updateGroupInfo(@PathVariable Long groupId,@RequestBody GroupUpdateDTO dto){
+        chatServiceImpl.updateGroupInfo(dto.getTitle(), dto.getBio(), groupId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{chatId}/exit/{userId}")
+    public ResponseEntity<?> deleteMemberByUserId(@PathVariable Long chatId, @PathVariable Long userId){
+        List<ChatMembers> members = chatMembersServiceImpl.findChatMembersByChatid(chatId);
+        for(ChatMembers member : members){
+            if(member.getUserid().equals(userId)){
+                chatMembersServiceImpl.deleteChatMemberByUserId(member.getId());
+            }
+        }
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/delete/{groupId}/{memberId}")
+    public ResponseEntity<?> deleteMemberByOwner(@PathVariable Long groupId,@PathVariable Long memberId,@RequestHeader("Authorization") String jwt){
+        String token = jwt.substring(7);
+        Claims claims = jwtCore.getAllClaimsFromToken(token);
+        Long userId = Long.valueOf(claims.get("userId").toString());
+        List<ChatMembers> members = chatMembersServiceImpl.findChatMembersByChatid(groupId);
+
+        for (ChatMembers member : members){
+            if(member.getUserid().equals(memberId)){
+                chatMembersServiceImpl.deleteGroupMember(groupId,memberId);
+                System.out.println("delete");
+            }
+        }
+
+        return ResponseEntity.ok().build();
     }
 
 

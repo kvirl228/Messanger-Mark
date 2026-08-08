@@ -1,0 +1,7 @@
+server:
+  port: 8034
+
+cloudinary:
+  cloud-name: tevxjqzq
+  api-key: 369131865198111
+  api-secret: 14ziA3reuSnD2DDM6S1gnTnUiBc

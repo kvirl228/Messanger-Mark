@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { user_service, auth_service, chat_service } from "../../properties"
+import { user_service, auth_service, chat_service, file_service } from "../../properties"
 import { useUser } from "../context/UserContext"
 import './Forms.css'
 
@@ -16,6 +16,11 @@ function Group(props){
     const [contacts, setContacts] = useState([])
     const [selectedContacts, setSelectedContacts] = useState([])
     const [searchQuery, setSearchQuery] = useState('')
+    const [pendingImage, setPendingImage] = useState(null)
+    const [pendingPreview, setPendingPreview] = useState(null)
+    const [uploadingImage, setUploadingImage] = useState(false)
+    const fileInputRef = useRef(null)
+    const [avatarUrl, setAvatarUrl] = useState('')
     
 
     const navigate = useNavigate()
@@ -39,6 +44,63 @@ function Group(props){
                 : [...prev, contactId]
         )
     }
+
+    const handleImagePick = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            alert('Пожалуйста, выберите изображение');
+            event.target.value = '';
+            return;
+        }
+
+        if (pendingPreview) {
+            URL.revokeObjectURL(pendingPreview);
+        }
+
+        setPendingImage(file);
+        setPendingPreview(URL.createObjectURL(file));
+        event.target.value = '';
+    };
+
+    const clearPendingImage = () => {
+        if (pendingPreview) {
+            URL.revokeObjectURL(pendingPreview);
+        }
+        setPendingImage(null);
+        setPendingPreview(null);
+        setAvatarUrl('');
+    };
+
+    const uploadPendingImage = async () => {
+        if (!pendingImage) return;
+
+        setUploadingImage(true);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', pendingImage);
+
+            const response = await fetch(`${file_service}/api/files/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Ошибка загрузки файла');
+            }
+
+            const fileData = await response.json();
+            return fileData.url;
+        } catch (error) {
+            console.error('Ошибка загрузки фото:', error);
+            alert('Не удалось загрузить фотографию');
+            return null;
+        } finally {
+            setUploadingImage(false);
+        }
+    };
 
     async function refresh(){
         try {
@@ -94,6 +156,15 @@ function Group(props){
         setIsLoading(true);
         console.log("Создание группы с названием:", selectedContacts, groupName, groupDescription);
         try {
+            let avatarUrl = null;
+            if (pendingImage) {
+                avatarUrl = await uploadPendingImage();
+                if (!avatarUrl) {
+                    setIsLoading(false);
+                    return;
+                }
+            }
+
             const response = await fetch(`${chat_service}/api/chats/group/create`, {
                 method: 'POST',
                 headers: {
@@ -104,7 +175,8 @@ function Group(props){
                     title: groupName,
                     bio: groupDescription,
                     ownerId: user.userId,
-                    memberIds: selectedContacts
+                    memberIds: selectedContacts,
+                    avatar: avatarUrl
                 }),
             });
             if(response.ok){
@@ -166,6 +238,59 @@ function Group(props){
                         </label>
                         <textarea className="group-form-textarea" value={groupDescription} onChange={handleGroupDescription} placeholder="Расскажите о группе..." maxLength={200} rows={3}/>
                         <div className="input-counter">{groupDescription.length}/200</div>
+                    </div>
+
+                    <div className="group-form-field">
+                        <label className="group-form-label">
+                            <span className="label-icon">📷</span>
+                            Фото группы
+                        </label>
+                        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <div
+                                className="avatar-picker"
+                                onClick={() => fileInputRef.current?.click()}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => { if (e.key === 'Enter') fileInputRef.current?.click(); }}
+                            >
+                                {pendingPreview ? (
+                                    <img src={pendingPreview} alt="preview" />
+                                ) : avatarUrl ? (
+                                    <img src={avatarUrl} alt="group avatar" />
+                                ) : (
+                                    <div className="avatar-initials">👥</div>
+                                )}
+                                <div className="avatar-overlay" aria-hidden>✎</div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={handleImagePick}
+                                />
+                                <button
+                                    type="button"
+                                    className="settings-btn-primary"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={uploadingImage}
+                                >
+                                    {pendingImage ? 'Изменить фото' : 'Выбрать фото'}
+                                </button>
+                                {pendingImage && (
+                                    <button
+                                        type="button"
+                                        className="group-photo-remove"
+                                        onClick={clearPendingImage}
+                                        style={{ width: 'fit-content' }}
+                                    >
+                                        Убрать фото
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="group-form-field">

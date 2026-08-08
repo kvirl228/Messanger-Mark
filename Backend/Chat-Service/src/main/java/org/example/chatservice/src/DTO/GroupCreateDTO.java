@@ -15,5 +15,6 @@ public class GroupCreateDTO {
     String bio;
     Long ownerId;
     List<Long> memberIds;
+    String avatar;
 
 }

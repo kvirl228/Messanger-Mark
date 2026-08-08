@@ -56,9 +56,16 @@ function Chats() {
                     usersIds={user2Id}
                     groupName={name}
                     bio={bio}
-                    img={img}
                     bio={bio}
+                    groupAvatar = {img}
                     type={type}
+                    onExit={() => {
+                        setChats(prev => prev.filter(chat => chat.chatId !== chatId));
+                        setSelectedChatId(null);
+                        setIsClick(true);
+                        setChat(<></>);
+                        
+                    }}
                 />)
 
             }else{
@@ -188,8 +195,22 @@ function Chats() {
             })
             if(response.ok){
                 const data = await response.json()
-                setChats(Array.isArray(data) ? data : [data])
-                console.log(data)
+                // setChats(Array.isArray(data) ? data : [data])
+                const sortedChats = (Array.isArray(data) ? data : [data])
+                .sort((a, b) => {
+                    const timeA = a.sendtime 
+                        ? new Date(a.sendtime).getTime()
+                        : 0;
+
+                    const timeB = b.sendtime 
+                        ? new Date(b.sendtime).getTime()
+                        : 0;
+
+                    return timeB - timeA;
+                });
+
+                setChats(sortedChats);
+                console.log("www - ",data)
             }
             else if (response.status === 401) {
                 if (await refreshToken()) {
@@ -203,6 +224,7 @@ function Chats() {
     }
 
     useEffect(() => {
+        console.log("User info:", user)
             getAllChatsOfUser()
             console.log("User info:", chats)
             function handleKeyDown(event) {
@@ -222,30 +244,74 @@ function Chats() {
 
     useEffect(() => {
 
+        const listener = event => {
+            console.log("Avatar update:", event);
+            setChats(prev =>
+            prev.map(chat => {
+                if (chat.type=="PRIVATE" && chat.userId[0] === event.userId) {
+                    return {
+                        ...chat,
+                        avatar: event.avatar
+                    };
+                }
+                return chat;
+            }));
+        };
+
+        WebSocketService.addAvatarListener(listener);
+
+        return () => {
+            WebSocketService.removeAvatarListener(listener);
+        };
+
+    }, []);
+
+    useEffect(() => {
+
         const chatListener = (chat) => {
-
-        console.log("ChatList event:", chat);
-
-
-        const newChat = {
-            title: chat.title,
-            userId: chat.userId,
-            chatId: chat.chatId,
-            type: chat.type,
-            lastMessage: chat.lastMessage,
+            console.log("ChatList event:", chat);
+            if  (chat.responseType === "PRIVATE") {
+                const newChat = {
+                    title: chat.title,
+                    userId: chat.userId,
+                    chatId: chat.chatId,
+                    type: chat.type,
+                    sendtime: chat.sendtime,
+                    lastMessage: chat.lastMessage,
+                };
+                setChats(prev => [newChat, ...prev]);
+            }
+            
+            else if (chat.responseType=="MESSAGE") {
+                setChats(prev => {
+                const updatedChats = prev.map(c => {
+                    if (Number(c.chatId) === Number(chat.chatId)) {
+                        return {
+                            ...c,
+                            lastMessage: chat.lastMessage,
+                            sendtime: chat.sendtime
+                        };
+                    }
+                    return c;
+                });
+                return updatedChats.sort((a, b) => {
+                    const timeA = a.sendtime
+                        ? new Date(a.sendtime).getTime()
+                        : 0;
+                    const timeB = b.sendtime
+                        ? new Date(b.sendtime).getTime()
+                        : 0;
+                    return timeB - timeA;
+                });});
+            }
         };
 
 
-        setChats(prev => [newChat, ...prev]);
+        WebSocketService.addChatListener(chatListener);
 
-    };
-
-
-    WebSocketService.addChatListener(chatListener);
-
-    return () => {
-        WebSocketService.removeChatListener(chatListener);
-    };
+        return () => {
+            WebSocketService.removeChatListener(chatListener);
+        };
         
     }, [])
 
@@ -253,7 +319,7 @@ function Chats() {
         <div className='chats_block'>
             <div className="folder_block">
                 <div className="user_block">
-                    <div className="user_folder_photo" onClick={toSettings}></div>
+                    <div className="user_folder_photo" onClick={toSettings}><img src={user?.avatar} alt="Avatar" /></div>
                     <input className="user_folder_search" placeholder='Поиск' value={search} onChange={handleChange}/>
                     <button className="search_button" onClick={searchUser}>
                         <span className="search_icon">🔍</span>
@@ -266,7 +332,7 @@ function Chats() {
                             <ChatInfo
                                 key={index}
                                 name={user.username}
-                                // img = {user.avatar}
+                                img = {user.avatar}
                                 text=""
                                 time=""
                                 func={() => clickChat(isClick, null, user.id, user.bio, user.username, user.avatar)}
@@ -282,7 +348,7 @@ function Chats() {
                                     name = {item.title}
                                     img={item.avatar}
                                     text={item.lastMessage || ""}
-                                    time={item.lastMessage?.timestamp || ""}
+                                    time={item.sendtime || ""}
                                     func = {() => clickChat(isClick, item.chatId, item.userId, item.bio, item.title, item.avatar, item.type)}
                                     isSelected={selectedChatId === item.chatId}
                                     chatId={item.chatId}
@@ -301,14 +367,14 @@ function Chats() {
                             <span className="create_icon">👥</span>
                             <span className="create_text">Группа</span>
                         </button>
-                        <button 
+                        {/* <button 
                             className="create_button channel_create"
                             onClick={() => navigate("/channel")}
                             title="Создать канал"
                         >
                             <span className="create_text">📢</span>
                             <span className="create_text">Канал</span>
-                        </button>
+                        </button> */}
                         <button
                             className="create_button contact_create"
                             onClick={() => navigate("/contacts")}
